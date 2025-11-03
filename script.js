@@ -1549,6 +1549,54 @@ function OpenABRPFullRoute() {
 
 
 
+function readInlineMapsKey() {
+  const key =
+    typeof window !== "undefined" && typeof window.GOOGLE_MAPS_API_KEY === "string" && window.GOOGLE_MAPS_API_KEY.trim()
+      ? window.GOOGLE_MAPS_API_KEY.trim()
+      : document.querySelector("meta[name='google-maps-api-key']")?.content?.trim() ||
+        document.querySelector("[data-google-maps-key]")?.dataset.googleMapsKey?.trim();
+
+  return key || null;
+}
+
+async function requestMapsKey() {
+  try {
+    const response = await fetch("/api/maps-key");
+    if (!response.ok) {
+      const { error } = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error || "Unable to retrieve Google Maps API key from the server.");
+    }
+
+    const data = await response.json();
+    if (!data?.key) {
+      throw new Error("Google Maps API key is not configured on the server.");
+    }
+
+    if (typeof data.key !== "string" || !data.key.trim()) {
+      throw new Error("Google Maps API key returned by the server is invalid.");
+    }
+
+    return data.key.trim();
+  } catch (networkError) {
+    if (networkError instanceof TypeError) {
+      throw new Error(
+        "Unable to contact the /api/maps-key endpoint. If you're serving the site statically, add the key via window.GOOGLE_MAPS_API_KEY or a <meta name='google-maps-api-key'> tag."
+      );
+    }
+
+    throw networkError;
+  }
+}
+
+async function resolveMapsKey() {
+  const inlineKey = readInlineMapsKey();
+  if (inlineKey) {
+    return inlineKey;
+  }
+
+  return requestMapsKey();
+}
+
 async function loadGoogleMaps() {
   if (document.querySelector("script[data-google-maps]") || typeof google !== "undefined") {
     return;
