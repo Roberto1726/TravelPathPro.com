@@ -211,6 +211,8 @@ function initAutocomplete() {
   }
 }
 
+window.initAutocomplete = initAutocomplete;
+
 
 // 📍 "Use My Location" button
 function useMyLocation() {
@@ -1548,13 +1550,50 @@ function OpenABRPFullRoute() {
 
 
 async function loadGoogleMaps() {
-  const response = await fetch('/api/maps-key');
-  const data = await response.json();
-  const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places,geometry&callback=initAutocomplete`;
-  script.async = true;
-  document.head.appendChild(script);
+  if (document.querySelector("script[data-google-maps]") || typeof google !== "undefined") {
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/maps-key");
+    if (!response.ok) {
+      const { error } = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error || "Unable to retrieve Google Maps API key.");
+    }
+
+    const data = await response.json();
+    if (!data?.key) {
+      throw new Error("Google Maps API key is not configured.");
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places,geometry&callback=initAutocomplete`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleMaps = "true";
+    script.onerror = () => {
+      handleMapsLoadError(new Error("Failed to load Google Maps JavaScript API."));
+    };
+    document.head.appendChild(script);
+  } catch (error) {
+    handleMapsLoadError(error);
+  }
 }
+
+function handleMapsLoadError(error) {
+  console.error("Google Maps API failed to load:", error);
+
+  const mapContainer = document.getElementById("map");
+  if (mapContainer && !mapContainer.querySelector(".map-error")) {
+    const errorMessage = document.createElement("div");
+    errorMessage.className = "map-error";
+    errorMessage.style.cssText = "display:flex;align-items:center;justify-content:center;height:100%;text-align:center;padding:1.5rem;background:#fff4f4;border:1px solid #f5c2c7;color:#842029;border-radius:10px;";
+    errorMessage.innerHTML = `⚠️ Unable to load Google Maps.<br><small>${error.message}</small>`;
+    mapContainer.innerHTML = "";
+    mapContainer.appendChild(errorMessage);
+  }
+}
+
 loadGoogleMaps();
 
 
