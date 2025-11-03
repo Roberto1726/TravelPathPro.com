@@ -14,7 +14,13 @@ app.use(express.static(__dirname));
 
 // Secure route that provides the key to frontend
 app.get("/api/maps-key", (req, res) => {
-  res.json({ key: process.env.GOOGLE_MAPS_API_KEY });
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+
+  if (!key) {
+    return res.status(500).json({ error: "Google Maps API key is not configured." });
+  }
+
+  res.json({ key });
 });
 
 // Start server

@@ -211,6 +211,8 @@ function initAutocomplete() {
   }
 }
 
+window.initAutocomplete = initAutocomplete;
+
 
 // 📍 "Use My Location" button
 function useMyLocation() {
@@ -1547,14 +1549,96 @@ function OpenABRPFullRoute() {
 
 
 
-async function loadGoogleMaps() {
-  const response = await fetch('/api/maps-key');
-  const data = await response.json();
-  const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places,geometry&callback=initAutocomplete`;
-  script.async = true;
-  document.head.appendChild(script);
+function readInlineMapsKey() {
+  const key =
+    typeof window !== "undefined" && typeof window.GOOGLE_MAPS_API_KEY === "string" && window.GOOGLE_MAPS_API_KEY.trim()
+      ? window.GOOGLE_MAPS_API_KEY.trim()
+      : document.querySelector("meta[name='google-maps-api-key']")?.content?.trim() ||
+        document.querySelector("[data-google-maps-key]")?.dataset.googleMapsKey?.trim();
+
+  return key || null;
 }
+
+async function requestMapsKey() {
+  try {
+    const response = await fetch("/api/maps-key");
+    if (!response.ok) {
+      const { error } = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error || "Unable to retrieve Google Maps API key from the server.");
+    }
+
+    const data = await response.json();
+    if (!data?.key) {
+      throw new Error("Google Maps API key is not configured on the server.");
+    }
+
+    if (typeof data.key !== "string" || !data.key.trim()) {
+      throw new Error("Google Maps API key returned by the server is invalid.");
+    }
+
+    return data.key.trim();
+  } catch (networkError) {
+    if (networkError instanceof TypeError) {
+      throw new Error(
+        "Unable to contact the /api/maps-key endpoint. If you're serving the site statically, add the key via window.GOOGLE_MAPS_API_KEY or a <meta name='google-maps-api-key'> tag."
+      );
+    }
+
+    throw networkError;
+  }
+}
+
+async function resolveMapsKey() {
+  const inlineKey = readInlineMapsKey();
+  if (inlineKey) {
+    return inlineKey;
+  }
+
+  return requestMapsKey();
+}
+
+async function loadGoogleMaps() {
+  const existingScript = document.querySelector("script[data-google-maps]");
+  const googleIsLoaded = typeof google !== "undefined" && typeof google.maps !== "undefined";
+
+  if (existingScript || googleIsLoaded) {
+    if (googleIsLoaded && typeof initAutocomplete === "function" && !map) {
+      initAutocomplete();
+    }
+    return;
+  }
+
+  try {
+    const apiKey = await resolveMapsKey();
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&callback=initAutocomplete`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleMaps = "true";
+    script.onerror = () => {
+      handleMapsLoadError(new Error("Failed to load Google Maps JavaScript API."));
+    };
+    document.head.appendChild(script);
+  } catch (error) {
+    handleMapsLoadError(error);
+  }
+}
+
+function handleMapsLoadError(error) {
+  console.error("Google Maps API failed to load:", error);
+
+  const mapContainer = document.getElementById("map");
+  if (mapContainer && !mapContainer.querySelector(".map-error")) {
+    const errorMessage = document.createElement("div");
+    errorMessage.className = "map-error";
+    errorMessage.style.cssText = "display:flex;align-items:center;justify-content:center;height:100%;text-align:center;padding:1.5rem;background:#fff4f4;border:1px solid #f5c2c7;color:#842029;border-radius:10px;";
+    errorMessage.innerHTML = `⚠️ Unable to load Google Maps.<br><small>${error.message}</small>`;
+    mapContainer.innerHTML = "";
+    mapContainer.appendChild(errorMessage);
+  }
+}
+
 loadGoogleMaps();
 
 
