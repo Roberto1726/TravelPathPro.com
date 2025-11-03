@@ -1598,21 +1598,24 @@ async function resolveMapsKey() {
 }
 
 async function loadGoogleMaps() {
-  const existingScript = document.querySelector("script[data-google-maps]");
-  const googleIsLoaded = typeof google !== "undefined" && typeof google.maps !== "undefined";
-
-  if (existingScript || googleIsLoaded) {
-    if (googleIsLoaded && typeof initAutocomplete === "function" && !map) {
-      initAutocomplete();
-    }
+  if (document.querySelector("script[data-google-maps]") || typeof google !== "undefined") {
     return;
   }
 
   try {
-    const apiKey = await resolveMapsKey();
+    const response = await fetch("/api/maps-key");
+    if (!response.ok) {
+      const { error } = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error || "Unable to retrieve Google Maps API key.");
+    }
+
+    const data = await response.json();
+    if (!data?.key) {
+      throw new Error("Google Maps API key is not configured.");
+    }
 
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&callback=initAutocomplete`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places,geometry&callback=initAutocomplete`;
     script.async = true;
     script.defer = true;
     script.dataset.googleMaps = "true";
