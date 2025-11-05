@@ -10,9 +10,6 @@ app.use(express.json({ limit: "1mb" }));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve your static files (HTML, CSS, JS)
-app.use(express.static(__dirname));
-
 // Secure route that provides the key to frontend
 app.get("/api/maps-key", (req, res) => {
   const key = process.env.GOOGLE_MAPS_API_KEY;
@@ -23,6 +20,9 @@ app.get("/api/maps-key", (req, res) => {
 
   res.json({ key });
 });
+
+// Serve your static files (HTML, CSS, JS)
+app.use(express.static(__dirname));
 
 function buildRouteLocationPayload(location = {}) {
   if (!location) return null;
