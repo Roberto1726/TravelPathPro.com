@@ -681,41 +681,70 @@ async function CalculateLegs() {
 
 
   try {
-    // --- Build waypoint list ---
-    const stopInputs = Array.from(document.querySelectorAll(".stop-input"));
+      // --- Build waypoint list ---
+      const stopInputs = Array.from(document.querySelectorAll(".stop-input"));
 
-    const waypoints = await Promise.all(
-      stopInputs.map(async (input, idx) => {
-        const val = input.value.trim();
-        if (!val) return null;
+      const waypointCandidates = await Promise.all(
+        stopInputs.map(async (input, idx) => {
+          const val = input.value.trim();
+          if (!val) return null;
 
-        let coords = waypointCoords[idx];
-        if (coords?.lat && coords?.lng) {
-          return { location: new google.maps.LatLng(coords.lat, coords.lng), stopover: true };
-        }
-        if (coords?.address) {
-          const geocodeResult = await geocodeAddress(coords.address);
+          let coords = waypointCoords[idx];
+          if (coords?.lat && coords?.lng) {
+            return {
+              location: new google.maps.LatLng(coords.lat, coords.lng),
+              stopover: true,
+              label: val,
+            };
+          }
+          if (coords?.address) {
+            const geocodeResult = await geocodeAddress(coords.address);
+            if (geocodeResult) {
+              waypointCoords[idx] = geocodeResult;
+              return {
+                location: new google.maps.LatLng(geocodeResult.lat, geocodeResult.lng),
+                stopover: true,
+                label: val,
+              };
+            }
+            return null;
+          }
+
+          // fallback — try direct geocode
+          const geocodeResult = await geocodeAddress(val);
           if (geocodeResult) {
             waypointCoords[idx] = geocodeResult;
-            return { location: new google.maps.LatLng(geocodeResult.lat, geocodeResult.lng), stopover: true };
+            return {
+              location: new google.maps.LatLng(geocodeResult.lat, geocodeResult.lng),
+              stopover: true,
+              label: val,
+            };
           }
           return null;
-        }
+        })
+      );
 
-        // fallback — try direct geocode
-        const geocodeResult = await geocodeAddress(val);
-        if (geocodeResult) {
-          waypointCoords[idx] = geocodeResult;
-          return { location: new google.maps.LatLng(geocodeResult.lat, geocodeResult.lng), stopover: true };
-        }
-        return null;
-      })
-    );
+      const validWaypointEntries = waypointCandidates
+        .filter(
+          w =>
+            w &&
+            w.location &&
+            typeof w.location.lat === "function" &&
+            typeof w.location.lng === "function" &&
+            !isNaN(w.location.lat()) &&
+            !isNaN(w.location.lng())
+        )
+        .map(entry => ({
+          waypoint: { location: entry.location, stopover: true },
+          meta: {
+            lat: entry.location.lat(),
+            lng: entry.location.lng(),
+            label: entry.label || "",
+          },
+        }));
 
-    // --- Filter out invalids ---
-    const validWaypoints = waypoints.filter(
-      w => w && w.location && !isNaN(w.location.lat()) && !isNaN(w.location.lng())
-    );
+      const validWaypoints = validWaypointEntries.map(entry => entry.waypoint);
+      const waypointMetadata = validWaypointEntries.map(entry => entry.meta);
 
     // 🧭 Validate waypoint coordinates before routing
     for (let i = 0; i < validWaypoints.length; i++) {
@@ -731,9 +760,9 @@ async function CalculateLegs() {
     }
 
     // ⚠️ Notify if any user stops were removed
-    if (waypoints.length !== validWaypoints.length) {
-      alert("Some stops were invalid and skipped (could not find a route).");
-    }
+      if (waypointCandidates.length !== validWaypoints.length) {
+        alert("Some stops were invalid and skipped (could not find a route).");
+      }
 
     // 🚧 If the route cannot connect all stops, attempt partial routing
     if (validWaypoints.length > 0) {
@@ -762,9 +791,7 @@ async function CalculateLegs() {
     console.log("To:", destLatLng);
 
     // --- Get route (do not alert here; only resolve status/result) ---
-    const routeResponse = await new Promise(async (resolve) => {
-      // (keep your validation / re-geocode loop here as-is)
-
+    const routeResponse = await new Promise(resolve => {
       directionsService.route(
         {
           origin: originLatLng,
@@ -782,21 +809,37 @@ async function CalculateLegs() {
       return;
     }
 
-    // Handle final outcome in ONE place (no alerts inside the callback)
-    if (routeResponse.status !== "OK" || !routeResponse.result) {
+    let routeData = null;
+
+    if (routeResponse.status === "OK" && routeResponse.result) {
+      routeData = routeResponse.result;
+    } else if (routeResponse.status === "REQUEST_DENIED") {
+      try {
+        routeData = await computeRouteUsingRoutesApi({
+          originLatLng,
+          destinationLatLng: destLatLng,
+          originText: starting,
+          destinationText: destination,
+          waypointMetadata,
+        });
+      } catch (fallbackError) {
+        hideSpinner();
+        alert(
+          "Route calculation was denied by Google Maps. Please verify your API configuration or try again later."
+        );
+        console.error("Routes API fallback failed:", fallbackError);
+        return;
+      }
+    } else {
       hideSpinner();
       if (routeResponse.status === "ZERO_RESULTS") {
-        // Only alert now if the *final* attempt truly failed
         alert("No drivable route found between one or more points. Please adjust your stops and try again.");
       } else {
         alert(`Route error: ${routeResponse.status}. Please adjust stops or try again.`);
       }
       console.error("Directions error:", routeResponse.status, { originLatLng, destLatLng, validWaypoints });
-      return; // stop here on failure
+      return;
     }
-
-    const routeData = routeResponse.result;
-
 
     directionsRenderer.setDirections(routeData);
 
@@ -1643,6 +1686,281 @@ function handleMapsLoadError(error) {
 }
 
 loadGoogleMaps();
+
+
+function extractLatLngLiteral(latLng) {
+  if (!latLng) return null;
+
+  const latValue = typeof latLng.lat === "function" ? latLng.lat() : latLng.lat;
+  const lngValue = typeof latLng.lng === "function" ? latLng.lng() : latLng.lng;
+
+  if (
+    typeof latValue === "number" &&
+    typeof lngValue === "number" &&
+    !Number.isNaN(latValue) &&
+    !Number.isNaN(lngValue)
+  ) {
+    return { lat: latValue, lng: lngValue };
+  }
+
+  return null;
+}
+
+function formatDistanceFromMeters(distanceMeters = 0) {
+  if (!distanceMeters || Number.isNaN(distanceMeters)) {
+    return "0 km";
+  }
+
+  if (distanceMeters >= 1000) {
+    return `${(distanceMeters / 1000).toFixed(1)} km`;
+  }
+
+  return `${Math.round(distanceMeters)} m`;
+}
+
+function parseDurationToSeconds(duration) {
+  if (!duration || typeof duration !== "string") return 0;
+
+  const match = duration.match(/(-?\d+(?:\.\d*)?)s/);
+  if (!match) return 0;
+
+  return Math.round(parseFloat(match[1]));
+}
+
+function formatDurationFromSeconds(totalSeconds = 0) {
+  if (!totalSeconds || Number.isNaN(totalSeconds)) return "0 min";
+
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (hours && minutes) return `${hours} hr ${minutes} min`;
+  if (hours) return `${hours} hr`;
+  if (minutes) return `${minutes} min`;
+  return `${remainingSeconds} sec`;
+}
+
+function decodePolylineToLatLng(encoded = "") {
+  if (!encoded || typeof encoded !== "string") return [];
+
+  if (
+    typeof google !== "undefined" &&
+    google?.maps?.geometry?.encoding?.decodePath
+  ) {
+    return google.maps.geometry.encoding.decodePath(encoded);
+  }
+
+  // Minimal fallback decoder if geometry library is unavailable
+  const points = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let b;
+
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const deltaLat = (result & 1) ? ~(result >> 1) : result >> 1;
+    lat += deltaLat;
+
+    result = 0;
+    shift = 0;
+
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const deltaLng = (result & 1) ? ~(result >> 1) : result >> 1;
+    lng += deltaLng;
+
+    points.push(new google.maps.LatLng(lat / 1e5, lng / 1e5));
+  }
+
+  return points;
+}
+
+function deriveLegAddresses(context, legIndex) {
+  const waypointLabels = Array.isArray(context.waypointLabels) ? context.waypointLabels : [];
+
+  const startAddress =
+    legIndex === 0
+      ? context.originText
+      : waypointLabels[legIndex - 1] || context.originText;
+
+  const endAddress =
+    legIndex < waypointLabels.length
+      ? waypointLabels[legIndex] || context.destinationText
+      : context.destinationText;
+
+  return { startAddress, endAddress };
+}
+
+function transformRoutesApiResponse(data, context) {
+  if (!data?.routes?.length) {
+    throw new Error("Routes API returned no routes.");
+  }
+
+  const [apiRoute] = data.routes;
+
+  const overviewPath = decodePolylineToLatLng(apiRoute?.polyline?.encodedPolyline || "");
+  const bounds = new google.maps.LatLngBounds();
+  overviewPath.forEach(point => bounds.extend(point));
+
+  const totalLegs = (apiRoute.legs || []).length;
+
+  const legs = (apiRoute.legs || []).map((leg, index) => {
+    const startLatLng = leg?.startLocation?.latLng;
+    const endLatLng = leg?.endLocation?.latLng;
+
+    const startLocation = startLatLng
+      ? new google.maps.LatLng(startLatLng.latitude, startLatLng.longitude)
+      : index === 0 && context.originLiteral
+        ? new google.maps.LatLng(context.originLiteral.lat, context.originLiteral.lng)
+        : null;
+
+      const endLocation = endLatLng
+        ? new google.maps.LatLng(endLatLng.latitude, endLatLng.longitude)
+        : index === totalLegs - 1 && context.destinationLiteral
+        ? new google.maps.LatLng(context.destinationLiteral.lat, context.destinationLiteral.lng)
+        : null;
+
+    const steps = (leg.steps || []).map(step => {
+      const path = decodePolylineToLatLng(step?.polyline?.encodedPolyline || "");
+      const distanceMeters = step?.distanceMeters || 0;
+      const durationSeconds = parseDurationToSeconds(step?.staticDuration || step?.duration || "0s");
+
+      const startStep = path.length ? path[0] : startLocation;
+      const endStep = path.length ? path[path.length - 1] : endLocation;
+
+      return {
+        distance: {
+          value: distanceMeters,
+          text: formatDistanceFromMeters(distanceMeters),
+        },
+        duration: {
+          value: durationSeconds,
+          text: formatDurationFromSeconds(durationSeconds),
+        },
+        start_location: startStep || null,
+        end_location: endStep || null,
+        path,
+        instructions: step?.navigationInstruction?.instructions || "",
+      };
+    });
+
+    const legPath = steps.flatMap(step => step.path).filter(Boolean);
+    const legDistance = leg?.distanceMeters || 0;
+    const legDurationSeconds = parseDurationToSeconds(leg?.duration || "0s");
+
+    const { startAddress, endAddress } = deriveLegAddresses(context, index);
+
+    return {
+      distance: {
+        value: legDistance,
+        text: formatDistanceFromMeters(legDistance),
+      },
+      duration: {
+        value: legDurationSeconds,
+        text: formatDurationFromSeconds(legDurationSeconds),
+      },
+      start_location: startLocation || (legPath[0] || null),
+      end_location: endLocation || (legPath[legPath.length - 1] || null),
+      steps,
+      path: legPath,
+      start_address: startAddress,
+      end_address: endAddress,
+      via_waypoints: [],
+      via_waypoint_order: [],
+    };
+  });
+
+  return {
+    geocoded_waypoints: [],
+    routes: [
+      {
+        legs,
+        overview_path: overviewPath,
+        overview_polyline: { points: apiRoute?.polyline?.encodedPolyline || "" },
+        bounds,
+        warnings: [],
+        waypoint_order: [],
+      },
+    ],
+    request: null,
+  };
+}
+
+async function computeRouteUsingRoutesApi({
+  originLatLng,
+  destinationLatLng,
+  originText,
+  destinationText,
+  waypointMetadata = [],
+}) {
+  const originLiteral = extractLatLngLiteral(originLatLng);
+  const destinationLiteral = extractLatLngLiteral(destinationLatLng);
+
+  const payload = {
+    origin: originLiteral
+      ? { lat: originLiteral.lat, lng: originLiteral.lng, label: originText }
+      : { address: originText },
+    destination: destinationLiteral
+      ? { lat: destinationLiteral.lat, lng: destinationLiteral.lng, label: destinationText }
+      : { address: destinationText },
+  };
+
+  if (Array.isArray(waypointMetadata) && waypointMetadata.length) {
+    payload.waypoints = waypointMetadata
+      .map(meta => {
+        if (
+          typeof meta?.lat === "number" &&
+          typeof meta?.lng === "number" &&
+          !Number.isNaN(meta.lat) &&
+          !Number.isNaN(meta.lng)
+        ) {
+          return { lat: meta.lat, lng: meta.lng, label: meta.label };
+        }
+        if (meta?.label) {
+          return { address: meta.label };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+
+  const response = await fetch("/api/compute-route", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const { error } = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error || "Routes API request failed.");
+  }
+
+  const data = await response.json();
+
+  return transformRoutesApiResponse(data, {
+    originLiteral,
+    destinationLiteral,
+    originText,
+    destinationText,
+    waypointLabels: Array.isArray(waypointMetadata)
+      ? waypointMetadata.map(meta => meta?.label || "")
+      : [],
+  });
+}
 
 
 // ✅ Load trip if redirected from saved.html
