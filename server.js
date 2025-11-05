@@ -116,11 +116,30 @@ app.post("/api/compute-route", async (req, res) => {
 
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => ({}));
+      const googleError = errorPayload?.error || {};
       const message =
-        errorPayload?.error?.message ||
+        googleError.message ||
         errorPayload?.message ||
         `Routes API request failed with status ${response.status}`;
-      return res.status(502).json({ error: message });
+      const status = googleError.status || response.status;
+
+      let hint = "";
+      if (status === "PERMISSION_DENIED" || response.status === 403) {
+        hint =
+          "Verify that the Google Maps Routes API is enabled, billing is active, and the provided API key allows server-side requests from this host.";
+      } else if (status === "INVALID_ARGUMENT" || response.status === 400) {
+        hint =
+          "Double-check the origin, destination, and waypoint values being sent to the Google Routes API.";
+      } else if (status === "RESOURCE_EXHAUSTED" || response.status === 429) {
+        hint = "The Google Maps quota has been exceeded. Try again later or adjust your usage limits.";
+      }
+
+      return res.status(502).json({
+        error: message,
+        status,
+        hint,
+        details: googleError.details || errorPayload?.details || null,
+      });
     }
 
     const data = await response.json();

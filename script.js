@@ -824,9 +824,39 @@ async function CalculateLegs() {
         });
       } catch (fallbackError) {
         hideSpinner();
-        alert(
-          "Route calculation was denied by Google Maps. Please verify your API configuration or try again later."
-        );
+        const fallbackLines = [
+          fallbackError?.message?.trim() ||
+            "Route calculation was denied by Google Maps. Please verify your API configuration or try again later.",
+        ];
+
+        if (fallbackError?.hint) {
+          fallbackLines.push(fallbackError.hint);
+        }
+
+        if (fallbackError?.status) {
+          fallbackLines.push(`Google status: ${fallbackError.status}`);
+        }
+
+        if (fallbackError?.details) {
+          const detailText = Array.isArray(fallbackError.details)
+            ? fallbackError.details
+                .map(detail =>
+                  typeof detail === "string"
+                    ? detail
+                    : detail?.reason || detail?.message || JSON.stringify(detail)
+                )
+                .filter(Boolean)
+                .join("\n")
+            : typeof fallbackError.details === "string"
+              ? fallbackError.details
+              : "";
+
+          if (detailText) {
+            fallbackLines.push(detailText);
+          }
+        }
+
+        alert(fallbackLines.filter(Boolean).join("\n\n"));
         console.error("Routes API fallback failed:", fallbackError);
         return;
       }
@@ -1646,19 +1676,17 @@ async function loadGoogleMaps() {
   }
 
   try {
-    const response = await fetch("/api/maps-key");
-    if (!response.ok) {
-      const { error } = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error || "Unable to retrieve Google Maps API key.");
-    }
+    const key = await resolveMapsKey();
 
-    const data = await response.json();
-    if (!data?.key) {
-      throw new Error("Google Maps API key is not configured.");
+    if (!key) {
+      throw new Error(
+        "Google Maps API key was not found. Configure it via window.GOOGLE_MAPS_API_KEY, a <meta name='google-maps-api-key'> tag, or the /api/maps-key endpoint."
+      );
     }
 
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places,geometry&callback=initAutocomplete`;
+    const encodedKey = encodeURIComponent(key);
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodedKey}&libraries=places,geometry&callback=initAutocomplete`;
     script.async = true;
     script.defer = true;
     script.dataset.googleMaps = "true";
@@ -1945,8 +1973,23 @@ async function computeRouteUsingRoutesApi({
   });
 
   if (!response.ok) {
-    const { error } = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error || "Routes API request failed.");
+    const payload = await response.json().catch(() => ({}));
+    const message =
+      payload?.error ||
+      payload?.message ||
+      response.statusText ||
+      "Routes API request failed.";
+    const error = new Error(message);
+    if (payload?.hint) {
+      error.hint = payload.hint;
+    }
+    if (payload?.status) {
+      error.status = payload.status;
+    }
+    if (payload?.details) {
+      error.details = payload.details;
+    }
+    throw error;
   }
 
   const data = await response.json();
