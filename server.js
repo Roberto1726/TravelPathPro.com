@@ -10,9 +10,11 @@ app.use(express.json({ limit: "1mb" }));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const FALLBACK_GOOGLE_MAPS_API_KEY = "AIzaSyAMlrXwwsOWvNl7713bqYandeg77FGCte4";
+
 // Secure route that provides the key to frontend
 app.get("/api/maps-key", (req, res) => {
-  const key = process.env.GOOGLE_MAPS_API_KEY;
+  const key = process.env.GOOGLE_MAPS_API_KEY || FALLBACK_GOOGLE_MAPS_API_KEY;
 
   if (!key) {
     return res.status(500).json({ error: "Google Maps API key is not configured." });
@@ -51,7 +53,7 @@ function buildRouteLocationPayload(location = {}) {
 }
 
 app.post("/api/compute-route", async (req, res) => {
-  const key = process.env.GOOGLE_MAPS_API_KEY;
+  const key = process.env.GOOGLE_MAPS_API_KEY || FALLBACK_GOOGLE_MAPS_API_KEY;
 
   if (!key) {
     return res.status(500).json({ error: "Google Maps API key is not configured." });
