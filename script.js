@@ -1632,12 +1632,49 @@ function readInlineMapsKey() {
   return key || null;
 }
 
+function resolveApiBaseUrl() {
+  if (typeof window === "undefined") return "";
+
+  const inlineBase =
+    typeof window.TRAVELPATHPRO_API_BASE_URL === "string" && window.TRAVELPATHPRO_API_BASE_URL.trim()
+      ? window.TRAVELPATHPRO_API_BASE_URL.trim()
+      : null;
+
+  if (inlineBase) {
+    return inlineBase;
+  }
+
+  const metaBase = document.querySelector("meta[name='travelpathpro-api-base']")?.content?.trim();
+  if (metaBase) {
+    return metaBase;
+  }
+
+  return "";
+}
+
 async function requestMapsKey() {
   try {
-    const response = await fetch("/api/maps-key");
+    const apiBase = resolveApiBaseUrl();
+    let endpointUrl = "/api/maps-key";
+
+    try {
+      const base = apiBase || (typeof window !== "undefined" ? window.location.href : "");
+      if (base) {
+        endpointUrl = new URL("api/maps-key", base).toString();
+      }
+    } catch (urlError) {
+      console.warn("Falling back to default /api/maps-key endpoint due to URL resolution error:", urlError);
+    }
+
+    const response = await fetch(endpointUrl, {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    });
     if (!response.ok) {
       const { error } = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error || "Unable to retrieve Google Maps API key from the server.");
+      throw new Error(
+        error || `Unable to retrieve Google Maps API key from the server (endpoint: ${endpointUrl}).`
+      );
     }
 
     const data = await response.json();
@@ -1653,7 +1690,8 @@ async function requestMapsKey() {
   } catch (networkError) {
     if (networkError instanceof TypeError) {
       throw new Error(
-        "Unable to contact the /api/maps-key endpoint. If you're serving the site statically, add the key via window.GOOGLE_MAPS_API_KEY or a <meta name='google-maps-api-key'> tag."
+        "Unable to contact the /api/maps-key endpoint. If you're serving the site statically or from a different domain, " +
+          "set window.TRAVELPATHPRO_API_BASE_URL or add <meta name='travelpathpro-api-base'> to point to the server."
       );
     }
 
