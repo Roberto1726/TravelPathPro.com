@@ -1,4 +1,11 @@
 // ========== GLOBALS ==========
+// ⚠️ Fallback Google Maps API key used when the server endpoint is unavailable.
+//    This allows the application to keep functioning when served statically
+//    (e.g., via GitHub Pages) where the Express backend isn't accessible.
+//    The value can still be overridden via window.GOOGLE_MAPS_API_KEY,
+//    a <meta name="google-maps-api-key"> tag, or the /api/maps-key endpoint.
+const FALLBACK_GOOGLE_MAPS_API_KEY = "AIzaSyAMlrXwwsOWvNl7713bqYandeg77FGCte4";
+
 let startCoords = null;
 let destCoords = null;
 let waypointCoords = [];
@@ -1629,7 +1636,15 @@ function readInlineMapsKey() {
       : document.querySelector("meta[name='google-maps-api-key']")?.content?.trim() ||
         document.querySelector("[data-google-maps-key]")?.dataset.googleMapsKey?.trim();
 
-  return key || null;
+  if (key && key.trim()) {
+    return key.trim();
+  }
+
+  if (typeof FALLBACK_GOOGLE_MAPS_API_KEY === "string" && FALLBACK_GOOGLE_MAPS_API_KEY.trim()) {
+    return FALLBACK_GOOGLE_MAPS_API_KEY.trim();
+  }
+
+  return null;
 }
 
 function resolveApiBaseUrl() {
@@ -1689,6 +1704,10 @@ async function requestMapsKey() {
     return data.key.trim();
   } catch (networkError) {
     if (networkError instanceof TypeError) {
+      if (typeof FALLBACK_GOOGLE_MAPS_API_KEY === "string" && FALLBACK_GOOGLE_MAPS_API_KEY.trim()) {
+        return FALLBACK_GOOGLE_MAPS_API_KEY.trim();
+      }
+
       throw new Error(
         "Unable to contact the /api/maps-key endpoint. If you're serving the site statically or from a different domain, " +
           "set window.TRAVELPATHPRO_API_BASE_URL or add <meta name='travelpathpro-api-base'> to point to the server."
