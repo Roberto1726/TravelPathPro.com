@@ -132,7 +132,7 @@
       <div class="inputs-panel">
         <p><strong>Plan your next road trip below:</strong></p>
 
-        <label>From date:</label><br>
+        <label>From date:</label>
         <input type="date" id="fromDate"><br>
 
 
@@ -146,26 +146,26 @@
         <label for="maxdaydistance">Max Daily Distance:</label>
         <input type="number" id="maxdaydistance" placeholder="e.g. 500">
 
-        <label>Starting Point:</label><br>
+        <label>Starting Point:</label>
         <div style="display:flex; gap:8px; align-items:center; max-width:400px;">
           <input type="text" id="starting" placeholder="Enter your starting point" style="flex:1;">
           <button type="button" id="useMyLocationBtn" title="Use My Current Location">📍</button>
         </div>
 
-        <label>Destination:</label><br>
+        <label>Destination:</label>
         <input type="text" id="destination" placeholder="Enter your trip destination"><br><br>
 
         <div id="stopsContainer"></div>
         <button onclick="addStop()">+ Add Stop</button><br><br>
 
-        <label>Number of adults:</label><br>
+        <label>Number of adults:</label>
         <input type="number" id="adults" value="2" min="1"><br>
 
-        <label>Number of children:</label><br>
+        <label>Number of children:</label>
         <input type="number" id="children" value="0" min="0" onchange="updateChildrenAges()"><br>
         <div id="childrenAges"></div><br>
 
-        <label>Number of rooms:</label><br>
+        <label>Number of rooms:</label>
         <input type="number" id="rooms" value="1" min="1"><br>
 
         <!-- Vehicle and Fuel Inputs -->
@@ -188,7 +188,7 @@
             <option value="electric">Electric</option>
           </select>
 
-          <label for="fuelPrice">Fuel Price ($/L or kWh):</label><br>
+          <label for="fuelPrice">Fuel Price ($/L or kWh):</label>
           <input type="number" id="fuelPrice" step="0.01" min="0" placeholder="e.g. 2.00" value="2.00"><br><br>
 
           
