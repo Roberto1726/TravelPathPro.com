@@ -514,6 +514,7 @@ function getAverageConsumption(vehicleType, mode, year) {
     case "suv": consumption = 10.5; break;
     case "truck": consumption = 12.5; break;
     case "van": consumption = 11; break;
+    case "motorcycle": consumption = 5; break;
   }
 
   // Adjust by mode
