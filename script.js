@@ -92,6 +92,11 @@ function loadSelectedTrip() {
   document.getElementById('adults').value = trip.numAdults || 1;
   document.getElementById('children').value = trip.numChildren || 0;
 
+  document.getElementById('avoidHighways').checked = savedTrip.avoidHighways || false;
+  document.getElementById('avoidTolls').checked = savedTrip.avoidTolls || false;
+  document.getElementById('avoidFerries').checked = savedTrip.avoidFerries || false;
+
+
   // --- Rebuild children ages dropdowns ---
   updateChildrenAges();
   if (trip.childrenAges) {
@@ -656,7 +661,11 @@ async function CalculateLegs() {
   const distanceUnit = document.getElementById("unitSelect")?.value || "km";
   const maxDailyMeters = toMeters(maxDailyDistance, distanceUnit);
 
-
+  // Read avoid preferences
+  const avoidHighways = document.getElementById('avoidHighways').checked;
+  const avoidTolls = document.getElementById('avoidTolls').checked;
+  const avoidFerries = document.getElementById('avoidFerries').checked;
+  
   const numAdults = parseInt(document.getElementById("adults").value) || 1;
   const numChildren = parseInt(document.getElementById("children").value) || 0;
   const childrenAges = [];
@@ -806,6 +815,9 @@ async function CalculateLegs() {
           destination: destLatLng,
           waypoints: validWaypoints.length ? validWaypoints : undefined,
           travelMode: google.maps.TravelMode.DRIVING,
+          avoidHighways: avoidHighways,
+          avoidTolls: avoidTolls,
+          avoidFerries: avoidFerries
         },
         (result, status) => resolve({ status, result })
       );
@@ -1364,6 +1376,11 @@ function saveTrip() {
   const vehicleType = document.getElementById("vehicleType")?.value || "car";
   const fuelType = document.getElementById("fuelType")?.value || "gas";
   const fuelPrice = parseFloat(document.getElementById("fuelPrice")?.value) || 0;
+
+  avoidHighways: document.getElementById('avoidHighways').checked,
+  avoidTolls: document.getElementById('avoidTolls').checked,
+  avoidFerries: document.getElementById('avoidFerries').checked,
+
 
   // 👶 Children ages
   const childrenAges = [];
