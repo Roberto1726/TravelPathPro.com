@@ -225,15 +225,6 @@ function initAutocomplete() {
 
 window.initAutocomplete = initAutocomplete;
 
-['avoidHighways', 'avoidTolls', 'avoidFerries'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('change', () => {
-    if (window.map && typeof calculateAndDisplayRoute === 'function') {
-      calculateAndDisplayRoute();
-    }
-  });
-});
-
 // 📍 "Use My Location" button
 function useMyLocation() {
   if (!navigator.geolocation) {
