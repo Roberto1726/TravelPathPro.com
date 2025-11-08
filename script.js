@@ -1436,15 +1436,13 @@ async function exportToPDF() {
 
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    // Get itinerary text
-    let itineraryText = (outputDiv.textContent || outputDiv.innerText || "").trim() || "No itinerary available.";
+    let itineraryText = outputDiv.innerText.trim() || "No itinerary available.";
     
-    // Normalize & clean up special characters
+    // 🔧 Clean up special characters
     itineraryText = itineraryText
-      .normalize("NFKC")            // normalize similar-looking unicode
       .replace(/&?\s*\u00A1/g, "")  // remove "¡" (U+00A1), with optional preceding &
-      .replace(/!\u2019/g, ">")     // replace "!’" where ’ is U+2019 with ">"
-      .replace(/\u00A0/g, " ");     // convert non-breaking spaces to regular spaces
+      .replace(/!\u2019/g, ">");     // replace "!’" where ’ is U+2019 with ">"
+
 
 
     // Initialize PDF
