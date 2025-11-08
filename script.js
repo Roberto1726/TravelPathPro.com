@@ -1422,11 +1422,11 @@ async function exportToPDF() {
   downloadBtn.disabled = true;
 
   try {
-    // Temporarily hide buttons and no-print elements
+    // Hide UI during capture
     const hiddenElements = document.querySelectorAll("button, .no-print");
     hiddenElements.forEach(el => (el.style.display = "none"));
 
-    // Capture map as image
+    // ---- MAP IMAGE (unchanged) ----
     const mapCanvas = await html2canvas(mapDiv, {
       useCORS: true,
       logging: false,
@@ -1434,47 +1434,73 @@ async function exportToPDF() {
     });
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    // 🧹 CLEAN AND FORMAT ITINERARY CONTENT
-    let cleanedText = outputDiv.innerText;
+    // ---- BUILD A CLEAN, LINE-BROKEN SUMMARY ----
+    // 1) Clone and strip unwanted nodes (links, buttons, price compares)
+    const clone = outputDiv.cloneNode(true);
 
-    // Remove non-printable characters and unwanted sections
-    cleanedText = cleanedText
-      .replace(/[^\x20-\x7E\n\r]/g, "") // remove weird symbols
-      .replace(/Booking\.com.*|Expedia.*|Compare Prices.*/gi, "") // remove unwanted lines
-      .replace(/[!¡Øßè'þÜ¸=<>]/g, "") // remove stray punctuation
-      .replace(/\s{2,}/g, " ") // normalize spaces
-      .replace(/(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})/g, "$1 > $2"); // clean date range
+    // Remove obvious junk: links/buttons/compare blocks
+    clone.querySelectorAll("a, button, .compare, .price-compare").forEach(el => el.remove());
+    // Remove any elements containing Booking/Expedia/Compare Prices
+    [...clone.querySelectorAll("*")].forEach(el => {
+      const t = (el.textContent || "").toLowerCase();
+      if (t.includes("booking.com") || t.includes("expedia") || t.includes("compare prices")) {
+        el.remove();
+      }
+    });
 
-    // 🪄 Insert line breaks intelligently for better layout
-    cleanedText = cleanedText
-      // Break between key-value sections for summaries
-      .replace(/(Total Distance:[^A-Z]*)/g, "$1\n")
-      .replace(/(Max Daily Distance:[^A-Z]*)/g, "$1\n")
-      .replace(/(Estimated Overnight Stops:[^A-Z]*)/g, "$1\n")
-      .replace(/(Suggested Overnight Stops:[^A-Z]*)/g, "$1\n")
-      .replace(/(Children ages:[^A-Z]*)/g, "$1\n")
-      .replace(/(Vehicle:[^A-Z]*)/g, "$1\n")
-      .replace(/(Average Consumption:[^A-Z]*)/g, "$1\n")
-      .replace(/(Fuel Price:[^A-Z]*)/g, "$1\n")
-      .replace(/(Estimated Total Fuel Cost:[^A-Z]*)/g, "$1\n")
-      .replace(/(Stop \d+ Night)/g, "\n$1") // ensure stop sections start on new lines
-      .replace(/Trip Summary/g, "Trip Summary\n"); // break after title
+    // 2) Get plain text and normalize
+    let txt = (clone.textContent || "")
+      .replace(/\u00A0/g, " ")                 // nbsp -> space
+      .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "")// strip control/weird chars
+      .replace(/\s+/g, " ")                    // collapse runs of whitespace
+      .trim();
 
-    // Create a temporary cleaned div to render
+    // 3) Fix date delimiter
+    txt = txt.replace(/(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})/g, "$1 > $2");
+
+    // 4) Insert line breaks before known labels/sections
+    const labelRegexes = [
+      /Trip Summary\b/,
+      /Total Distance:/,
+      /Max Daily Distance:/,
+      /Estimated Overnight Stops:/,
+      /Suggested Overnight Stops:/,
+      /Children ages:/,
+      /Vehicle:/,
+      /Average Consumption:/,
+      /Fuel Price:/,
+      /Estimated Total Fuel Cost:/,
+      /Stop \d+ Night\b/,
+    ];
+
+    // Ensure a newline BEFORE each label (except if it's the very start)
+    for (const rx of labelRegexes) {
+      txt = txt.replace(new RegExp(`\\s*(${rx.source})`, "g"), "\n$1");
+    }
+
+    // Also make sure "Trip Summary" has a line after it
+    txt = txt.replace(/Trip Summary(?!\s*\n)/, "Trip Summary\n");
+
+    // Final tidy: remove accidental double newlines, trim
+    txt = txt.replace(/\n{2,}/g, "\n").trim();
+
+    // 5) Create a temporary render container preserving line breaks
     const tempDiv = document.createElement("div");
+    const isDark = document.body.classList.contains("dark-mode");
     tempDiv.style.cssText = `
       font-family: Arial, sans-serif;
-      color: ${document.body.classList.contains("dark-mode") ? "#fff" : "#000"};
-      background: ${document.body.classList.contains("dark-mode") ? "#121212" : "#fff"};
+      color: ${isDark ? "#fff" : "#000"};
+      background: ${isDark ? "#121212" : "#fff"};
       padding: 20px;
-      width: ${outputDiv.offsetWidth}px;
-      white-space: pre-line;
+      width: ${Math.max(outputDiv.offsetWidth, 320)}px;
+      white-space: pre-wrap;   /* preserve \n */
       line-height: 1.5;
+      box-sizing: border-box;
     `;
-    tempDiv.innerText = cleanedText.trim();
+    tempDiv.textContent = txt;
     document.body.appendChild(tempDiv);
 
-    // Capture cleaned itinerary as image
+    // 6) Capture the cleaned itinerary as an image
     const itineraryCanvas = await html2canvas(tempDiv, {
       useCORS: true,
       logging: false,
@@ -1483,15 +1509,15 @@ async function exportToPDF() {
     const itineraryImgData = itineraryCanvas.toDataURL("image/png");
     document.body.removeChild(tempDiv);
 
-    // Initialize PDF
+    // ---- BUILD PDF ----
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-    // Add map image
+    // Map image at top
     const imgWidth = 190;
     const mapHeight = (mapCanvas.height * imgWidth) / mapCanvas.width;
     pdf.addImage(mapImgData, "PNG", 10, 10, imgWidth, mapHeight);
 
-    // Add itinerary image below map
+    // Itinerary image below map
     const yStart = 10 + mapHeight + 10;
     const itineraryHeight = (itineraryCanvas.height * imgWidth) / itineraryCanvas.width;
 
@@ -1502,13 +1528,11 @@ async function exportToPDF() {
       pdf.addImage(itineraryImgData, "PNG", 10, yStart, imgWidth, itineraryHeight);
     }
 
-    // Save PDF
     pdf.save("trip_itinerary.pdf");
   } catch (err) {
     console.error("PDF export failed:", err);
     alert("Failed to generate PDF. Please try again.");
   } finally {
-    // Restore hidden elements and button
     const hiddenElements = document.querySelectorAll("button, .no-print");
     hiddenElements.forEach(el => (el.style.display = ""));
     downloadBtn.innerText = originalText;
@@ -1516,7 +1540,7 @@ async function exportToPDF() {
   }
 }
 
-// 🌗 Theme Toggle (Animated + Persistent)
+/* 🌗 Theme toggle (unchanged) */
 const themeToggle = document.getElementById("themeToggle");
 const savedTheme = localStorage.getItem("theme");
 
@@ -1524,27 +1548,20 @@ if (savedTheme === "dark") {
   document.body.classList.add("dark-mode");
   themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i>';
 }
-
-// Apply dark mode map style immediately
 if (savedTheme === "dark" && typeof map !== "undefined" && map) {
   map.setOptions({ styles: darkMapStyle });
 }
-
 themeToggle.addEventListener("click", () => {
   document.body.classList.toggle("dark-mode");
-
   const isDark = document.body.classList.contains("dark-mode");
   themeToggle.innerHTML = isDark
     ? '<i class="fa-solid fa-sun"></i>'
     : '<i class="fa-solid fa-moon"></i>';
   localStorage.setItem("theme", isDark ? "dark" : "light");
-
-  // 🗺️ Apply map theme instantly
   if (typeof map !== "undefined" && map) {
     map.setOptions({ styles: isDark ? darkMapStyle : [] });
   }
 });
-
 
 
 
