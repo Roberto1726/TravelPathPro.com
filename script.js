@@ -78,12 +78,34 @@ function hideSpinner() {
 
 
 
+// ===== Helper: safe JSON parsing so corrupt storage doesn't break the UI =====
+function safeJSONParse(rawValue, { fallback = null, storageKey } = {}) {
+  if (typeof rawValue !== "string" || !rawValue.trim()) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(rawValue);
+  } catch (error) {
+    console.warn("Failed to parse JSON from localStorage", storageKey || "value", error);
+    if (storageKey) {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (removeErr) {
+        console.warn("Unable to remove corrupt localStorage key", storageKey, removeErr);
+      }
+    }
+    return fallback;
+  }
+}
+
 // ========== LOAD SAVED TRIP (only when explicitly requested) ==========
 function loadSelectedTrip() {
-  const savedTrip = localStorage.getItem('tripToLoad');
-  if (!savedTrip) return; // nothing selected
+  const savedTripRaw = localStorage.getItem('tripToLoad');
+  if (!savedTripRaw) return; // nothing selected
 
-  const trip = JSON.parse(savedTrip);
+  const trip = safeJSONParse(savedTripRaw, { fallback: null, storageKey: 'tripToLoad' });
+  if (!trip) return;
 
   // --- Restore basic trip fields ---
   document.getElementById('starting').value = trip.start || '';
@@ -92,9 +114,9 @@ function loadSelectedTrip() {
   document.getElementById('adults').value = trip.numAdults || 1;
   document.getElementById('children').value = trip.numChildren || 0;
 
-  document.getElementById('avoidHighways').checked = savedTrip.avoidHighways || false;
-  document.getElementById('avoidTolls').checked = savedTrip.avoidTolls || false;
-  document.getElementById('avoidFerries').checked = savedTrip.avoidFerries || false;
+  document.getElementById('avoidHighways').checked = trip.avoidHighways || false;
+  document.getElementById('avoidTolls').checked = trip.avoidTolls || false;
+  document.getElementById('avoidFerries').checked = trip.avoidFerries || false;
 
 
   // --- Rebuild children ages dropdowns ---
@@ -214,12 +236,15 @@ function initAutocomplete() {
   attachAutocomplete("starting", coords => startCoords = coords);
   attachAutocomplete("destination", coords => destCoords = coords);
 
-  const savedLocation = localStorage.getItem("userLocation");
-  if (savedLocation) {
-    const { lat, lng, address } = JSON.parse(savedLocation);
-    startCoords = { lat, lng };
-    document.getElementById("starting").value = address || "";
-    map.setCenter({ lat, lng });
+  const savedLocationRaw = localStorage.getItem("userLocation");
+  if (savedLocationRaw) {
+    const savedLocation = safeJSONParse(savedLocationRaw, { fallback: null, storageKey: 'userLocation' });
+    if (savedLocation) {
+      const { lat, lng, address } = savedLocation;
+      startCoords = { lat, lng };
+      document.getElementById("starting").value = address || "";
+      map.setCenter({ lat, lng });
+    }
   }
 }
 
@@ -1417,7 +1442,10 @@ function saveTrip() {
     dateSaved: new Date().toLocaleString()
   };
 
-  const savedTrips = JSON.parse(localStorage.getItem('savedTrips')) || [];
+  const savedTrips = safeJSONParse(localStorage.getItem('savedTrips'), {
+    fallback: [],
+    storageKey: 'savedTrips'
+  }) || [];
   savedTrips.push(trip);
   localStorage.setItem('savedTrips', JSON.stringify(savedTrips));
 
