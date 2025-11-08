@@ -1447,14 +1447,12 @@ async function exportToPDF() {
 
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    // 🧾 Get itinerary text and clean special characters
-    let itineraryText = (outputDiv.textContent || outputDiv.innerText || "").trim() || "No itinerary available.";
-
+    let itineraryText = outputDiv.innerText.trim() || "No itinerary available.";
+    
+    // 🔧 Clean up special characters
     itineraryText = itineraryText
-      .normalize("NFKC")
-      .replace(/&?\s*\u00A1/g, "")  // remove inverted exclamation mark "¡"
-      .replace(/!\u2019/g, ">")     // replace right single quote after ! with ">"
-      .replace(/\u00A0/g, " ");     // convert non-breaking spaces
+      .replace(/&¡/g, "")   // remove "&¡"
+      .replace(/!’/g, ">"); // replace "!’" with ">"
 
     // 📄 Initialize PDF
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
