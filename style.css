@@ -295,3 +295,10 @@ button, input, select {
 }
 
 
+.route-avoid-options {
+  margin-top: 10px;
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  font-size: 0.9em;
+}
