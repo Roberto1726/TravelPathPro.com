@@ -1,6 +1,8 @@
 import express from "express";
 import dotenv from "dotenv";
 import path from "path";
+import http from "http";
+import https from "https";
 import { fileURLToPath } from "url";
 
 dotenv.config();
@@ -11,6 +13,86 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const FALLBACK_GOOGLE_MAPS_API_KEY = "AIzaSyAMlrXwwsOWvNl7713bqYandeg77FGCte4";
+
+let runtimeFetch = globalThis.fetch;
+
+const NETWORK_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+]);
+
+async function resolveFetch() {
+  if (runtimeFetch) {
+    return runtimeFetch;
+  }
+
+  runtimeFetch = function (resource, options = {}) {
+    return new Promise((resolve, reject) => {
+      try {
+        const requestUrl = typeof resource === "string" ? new URL(resource) : resource;
+        const isHttps = requestUrl.protocol === "https:";
+        const transport = isHttps ? https : http;
+
+        const {
+          method = "GET",
+          headers = {},
+          body,
+        } = options || {};
+
+        const req = transport.request(
+          {
+            protocol: requestUrl.protocol,
+            hostname: requestUrl.hostname,
+            port: requestUrl.port || (isHttps ? 443 : 80),
+            path: `${requestUrl.pathname}${requestUrl.search}`,
+            method,
+            headers,
+          },
+          (res) => {
+            const chunks = [];
+            res.on("data", (chunk) => chunks.push(chunk));
+            res.on("end", () => {
+              const buffer = Buffer.concat(chunks);
+              const responseText = buffer.toString();
+
+              resolve({
+                ok: res.statusCode >= 200 && res.statusCode < 300,
+                status: res.statusCode,
+                statusText: res.statusMessage || "",
+                headers: res.headers,
+                text: async () => responseText,
+                json: async () => {
+                  if (!responseText) return {};
+                  return JSON.parse(responseText);
+                },
+              });
+            });
+          }
+        );
+
+        req.on("error", reject);
+
+        if (body) {
+          if (Buffer.isBuffer(body) || typeof body === "string") {
+            req.write(body);
+          } else {
+            req.write(JSON.stringify(body));
+          }
+        }
+
+        req.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
+  return runtimeFetch;
+}
 
 // Secure route that provides the key to frontend
 app.get("/api/maps-key", (req, res) => {
@@ -50,6 +132,198 @@ function buildRouteLocationPayload(location = {}) {
   }
 
   return null;
+}
+
+function extractLatLngFromInput(location = {}) {
+  if (!location || typeof location !== "object") {
+    return null;
+  }
+
+  const directLat = typeof location.lat === "number" ? location.lat : location.latitude;
+  const directLng = typeof location.lng === "number" ? location.lng : location.longitude;
+
+  if (typeof directLat === "number" && typeof directLng === "number") {
+    return { latitude: directLat, longitude: directLng };
+  }
+
+  const nestedLat = location?.location?.latLng?.latitude;
+  const nestedLng = location?.location?.latLng?.longitude;
+  if (typeof nestedLat === "number" && typeof nestedLng === "number") {
+    return { latitude: nestedLat, longitude: nestedLng };
+  }
+
+  return null;
+}
+
+function buildLocationLabel(location = {}, fallbackLabel) {
+  if (!location || typeof location !== "object") {
+    return fallbackLabel;
+  }
+
+  return (
+    location.address ||
+    location.label ||
+    location.description ||
+    location.name ||
+    fallbackLabel
+  );
+}
+
+function toIsoDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  let iso = "PT";
+  if (hours) iso += `${hours}H`;
+  if (minutes) iso += `${minutes}M`;
+  if (!hours && !minutes) {
+    iso += `${remainingSeconds || 0}S`;
+  } else if (remainingSeconds) {
+    iso += `${remainingSeconds}S`;
+  }
+  if (iso === "PT") {
+    iso += "0S";
+  }
+  return iso;
+}
+
+function haversineDistanceMeters(a, b) {
+  const R = 6371000; // Earth radius in meters
+  const toRad = (value) => (value * Math.PI) / 180;
+
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const deltaLat = toRad(b.latitude - a.latitude);
+  const deltaLng = toRad(b.longitude - a.longitude);
+
+  const sinLat = Math.sin(deltaLat / 2);
+  const sinLng = Math.sin(deltaLng / 2);
+
+  const c =
+    sinLat * sinLat +
+    Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+
+  const d = 2 * Math.atan2(Math.sqrt(c), Math.sqrt(1 - c));
+
+  return R * d;
+}
+
+function encodePolyline(points) {
+  let lastLat = 0;
+  let lastLng = 0;
+  let result = "";
+
+  for (const point of points) {
+    const [lat, lng] = point;
+    const scaledLat = Math.round(lat * 1e5);
+    const scaledLng = Math.round(lng * 1e5);
+
+    const deltaLat = scaledLat - lastLat;
+    const deltaLng = scaledLng - lastLng;
+
+    result += encodeSignedNumber(deltaLat) + encodeSignedNumber(deltaLng);
+
+    lastLat = scaledLat;
+    lastLng = scaledLng;
+  }
+
+  return result;
+}
+
+function encodeSignedNumber(value) {
+  let sgnNum = value << 1;
+  if (value < 0) {
+    sgnNum = ~sgnNum;
+  }
+
+  let encoded = "";
+  while (sgnNum >= 0x20) {
+    encoded += String.fromCharCode((0x20 | (sgnNum & 0x1f)) + 63);
+    sgnNum >>= 5;
+  }
+  encoded += String.fromCharCode(sgnNum + 63);
+  return encoded;
+}
+
+function buildOfflineRouteResponse(originInput, destinationInput) {
+  const originCoords = extractLatLngFromInput(originInput);
+  const destinationCoords = extractLatLngFromInput(destinationInput);
+
+  if (!originCoords || !destinationCoords) {
+    return null;
+  }
+
+  const distanceMeters = Math.round(haversineDistanceMeters(originCoords, destinationCoords));
+  const averageSpeedMetersPerSecond = 27.7778; // ≈100 km/h
+  const durationSeconds = Math.max(60, Math.round(distanceMeters / averageSpeedMetersPerSecond));
+
+  const encodedPolyline = encodePolyline([
+    [originCoords.latitude, originCoords.longitude],
+    [destinationCoords.latitude, destinationCoords.longitude],
+  ]);
+
+  const originLabel = buildLocationLabel(originInput, "Origin");
+  const destinationLabel = buildLocationLabel(destinationInput, "Destination");
+
+  const leg = {
+    distanceMeters,
+    duration: toIsoDuration(durationSeconds),
+    polyline: { encodedPolyline },
+    startLocation: {
+      latLng: {
+        latitude: originCoords.latitude,
+        longitude: originCoords.longitude,
+      },
+    },
+    endLocation: {
+      latLng: {
+        latitude: destinationCoords.latitude,
+        longitude: destinationCoords.longitude,
+      },
+    },
+    steps: [
+      {
+        distanceMeters,
+        staticDuration: toIsoDuration(durationSeconds),
+        polyline: { encodedPolyline },
+        navigationInstruction: {
+          maneuver: "DRIVE_STRAIGHT",
+          instructions: `Drive from ${originLabel} to ${destinationLabel}.`,
+        },
+      },
+    ],
+  };
+
+  return {
+    routes: [
+      {
+        distanceMeters,
+        duration: toIsoDuration(durationSeconds),
+        polyline: { encodedPolyline },
+        legs: [leg],
+        fallbackInfo: {
+          source: "offline-direct",
+          message:
+            "Google Routes API was unreachable. Distances are approximated using the great-circle distance between the two points.",
+        },
+      },
+    ],
+    fallback: {
+      reason: "Google Routes API unreachable",
+      strategy: "great-circle",
+    },
+  };
+}
+
+function isNetworkError(error) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const code = error.code || error?.cause?.code;
+  return code ? NETWORK_ERROR_CODES.has(code) : false;
 }
 
 app.post("/api/compute-route", async (req, res) => {
@@ -105,6 +379,7 @@ app.post("/api/compute-route", async (req, res) => {
   }
 
   try {
+    const fetch = await resolveFetch();
     const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
       method: "POST",
       headers: {
@@ -156,9 +431,27 @@ app.post("/api/compute-route", async (req, res) => {
       });
     }
 
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
+    if (!data) {
+      throw new Error("Google Routes API returned an unreadable response.");
+    }
+
     return res.json(data);
   } catch (error) {
+    if (isNetworkError(error)) {
+      const fallbackRoute = buildOfflineRouteResponse(origin, destination);
+      if (fallbackRoute) {
+        console.warn("Routes API unreachable. Returning offline fallback route.");
+        return res.json(fallbackRoute);
+      }
+
+      return res.status(502).json({
+        error: "Unable to reach Google Routes API and no fallback route could be generated.",
+        status: "NETWORK_UNREACHABLE",
+        hint: "Check the server's internet connectivity or try again later.",
+      });
+    }
+
     console.error("Routes API request failed:", error);
     return res.status(502).json({ error: "Unable to compute route using Google Routes API." });
   }
