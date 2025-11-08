@@ -1416,43 +1416,60 @@ async function exportToPDF() {
   }
 
   // Show loading feedback
-  const originalText = document.getElementById("downloadpdf").innerText;
-  document.getElementById("downloadpdf").innerText = "Generating PDF...";
-  document.getElementById("downloadpdf").disabled = true;
+  const downloadBtn = document.getElementById("downloadpdf");
+  const originalText = downloadBtn.innerText;
+  downloadBtn.innerText = "Generating PDF...";
+  downloadBtn.disabled = true;
 
   try {
-    // 🔒 Hide unwanted elements before capture (buttons, auto-stop icons, etc.)
+    // 🔒 Hide unwanted elements before capture
+    // Includes all interactive buttons, map control buttons, and custom icons
     const elementsToHide = document.querySelectorAll(
-      "button, .auto-stop-icon, .remove-stop, #themeToggle"
+      "button, .auto-stop-icon, .remove-stop, #themeToggle, .gm-style button, .gm-fullscreen-control, .gm-control-active"
     );
     elementsToHide.forEach(el => (el.style.display = "none"));
 
-    // Capture map as image
+    // 🗺️ Capture map as image
     const mapCanvas = await html2canvas(mapDiv, {
       useCORS: true,
       logging: false,
       scale: 2, // high quality
+      ignoreElements: (element) => {
+        // Extra safeguard: ignore hidden elements or map overlays
+        return (
+          element.tagName === "BUTTON" ||
+          element.classList.contains("auto-stop-icon") ||
+          element.classList.contains("gm-style") ||
+          element.classList.contains("gm-control-active")
+        );
+      },
     });
 
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    // Get itinerary text
-    const itineraryText = outputDiv.innerText.trim() || "No itinerary available.";
+    // 🧾 Get itinerary text and clean special characters
+    let itineraryText = (outputDiv.textContent || outputDiv.innerText || "").trim() || "No itinerary available.";
 
-    // Initialize PDF
+    itineraryText = itineraryText
+      .normalize("NFKC")
+      .replace(/&?\s*\u00A1/g, "")  // remove inverted exclamation mark "¡"
+      .replace(/!\u2019/g, ">")     // replace right single quote after ! with ">"
+      .replace(/\u00A0/g, " ");     // convert non-breaking spaces
+
+    // 📄 Initialize PDF
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-    // Add map image (fit within page)
+    // 🖼️ Add map image
     const imgWidth = 190;
     const imgHeight = (mapCanvas.height * imgWidth) / mapCanvas.width;
     pdf.addImage(mapImgData, "PNG", 10, 10, imgWidth, imgHeight);
 
-    // Add itinerary text below map
+    // 🧭 Add itinerary text below map
     const yStart = 10 + imgHeight + 10;
     const lines = pdf.splitTextToSize(itineraryText, 180);
     let y = yStart;
     for (const line of lines) {
-      if (y > 280) { // end of A4 page
+      if (y > 280) {
         pdf.addPage();
         y = 20;
       }
@@ -1460,49 +1477,23 @@ async function exportToPDF() {
       y += 7;
     }
 
-    // Save file
+    // 💾 Save file
     pdf.save("trip_itinerary.pdf");
   } catch (err) {
     console.error("PDF export failed:", err);
     alert("Failed to generate PDF. Please try again.");
   } finally {
-    // ✅ Restore hidden elements after capture
+    // ✅ Restore hidden elements
     document.querySelectorAll(
-      "button, .auto-stop-icon, .remove-stop, #themeToggle"
+      "button, .auto-stop-icon, .remove-stop, #themeToggle, .gm-style button, .gm-fullscreen-control, .gm-control-active"
     ).forEach(el => (el.style.display = ""));
 
     // Restore button state
-    document.getElementById("downloadpdf").innerText = originalText;
-    document.getElementById("downloadpdf").disabled = false;
+    downloadBtn.innerText = originalText;
+    downloadBtn.disabled = false;
   }
 }
 
-// 🌗 Theme Toggle (Animated + Persistent)
-const themeToggle = document.getElementById("themeToggle");
-const savedTheme = localStorage.getItem("theme");
-
-if (savedTheme === "dark") {
-  document.body.classList.add("dark-mode");
-  themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i>';
-}
-
-// Apply dark mode map style immediately
-if (savedTheme === "dark" && map) map.setOptions({ styles: darkMapStyle });
-
-themeToggle.addEventListener("click", () => {
-  document.body.classList.toggle("dark-mode");
-  
-  const isDark = document.body.classList.contains("dark-mode");
-  themeToggle.innerHTML = isDark
-    ? '<i class="fa-solid fa-sun"></i>'
-    : '<i class="fa-solid fa-moon"></i>';
-  localStorage.setItem("theme", isDark ? "dark" : "light");
-
-  // 🗺️ Apply map theme instantly
-  if (map) {
-    map.setOptions({ styles: isDark ? darkMapStyle : [] });
-  }
-});
 
 
 
