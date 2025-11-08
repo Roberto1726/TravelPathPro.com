@@ -1422,25 +1422,23 @@ async function exportToPDF() {
   downloadBtn.disabled = true;
 
   try {
-    // Hide UI during capture
+    // Hide UI elements during capture
     const hiddenElements = document.querySelectorAll("button, .no-print");
     hiddenElements.forEach(el => (el.style.display = "none"));
 
-    // ---- MAP IMAGE (unchanged) ----
+    // ---- CAPTURE MAP IMAGE ----
     const mapCanvas = await html2canvas(mapDiv, {
       useCORS: true,
       logging: false,
-      scale: 2,
+      scale: 2, // high quality
     });
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    // ---- BUILD A CLEAN, LINE-BROKEN SUMMARY ----
-    // 1) Clone and strip unwanted nodes (links, buttons, price compares)
+    // ---- CLEAN & FORMAT ITINERARY TEXT ----
     const clone = outputDiv.cloneNode(true);
 
-    // Remove obvious junk: links/buttons/compare blocks
+    // Remove unwanted elements (links, buttons, price compare)
     clone.querySelectorAll("a, button, .compare, .price-compare").forEach(el => el.remove());
-    // Remove any elements containing Booking/Expedia/Compare Prices
     [...clone.querySelectorAll("*")].forEach(el => {
       const t = (el.textContent || "").toLowerCase();
       if (t.includes("booking.com") || t.includes("expedia") || t.includes("compare prices")) {
@@ -1448,43 +1446,48 @@ async function exportToPDF() {
       }
     });
 
-    // 2) Get plain text and normalize
+    // Normalize text
     let txt = (clone.textContent || "")
-      .replace(/\u00A0/g, " ")                 // nbsp -> space
-      .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "")// strip control/weird chars
-      .replace(/\s+/g, " ")                    // collapse runs of whitespace
+      .replace(/\u00A0/g, " ") // nbsp → space
+      .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "") // remove control chars
+      .replace(/\s+/g, " ") // collapse multiple spaces
       .trim();
 
-    // 3) Fix date delimiter
+    // Fix date spacing
     txt = txt.replace(/(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})/g, "$1 > $2");
 
-    // 4) Insert line breaks before known labels/sections
-    const labelRegexes = [
-      /Trip Summary\b/,
-      /Total Distance:/,
-      /Max Daily Distance:/,
-      /Estimated Overnight Stops:/,
-      /Suggested Overnight Stops:/,
-      /Children ages:/,
-      /Vehicle:/,
-      /Average Consumption:/,
-      /Fuel Price:/,
-      /Estimated Total Fuel Cost:/,
-      /Stop \d+ Night\b/,
+    // Labels to highlight
+    const labels = [
+      "Trip Summary",
+      "Total Distance:",
+      "Max Daily Distance:",
+      "Estimated Overnight Stops:",
+      "Suggested Overnight Stops:",
+      "Children ages:",
+      "Vehicle:",
+      "Average Consumption:",
+      "Fuel Price:",
+      "Estimated Total Fuel Cost:",
+      "Stop"
     ];
 
-    // Ensure a newline BEFORE each label (except if it's the very start)
-    for (const rx of labelRegexes) {
-      txt = txt.replace(new RegExp(`\\s*(${rx.source})`, "g"), "\n$1");
-    }
+    // Add line breaks and <strong> markup for bold labels
+    labels.forEach(label => {
+      const regex = new RegExp(`\\s*(${label})`, "gi");
+      txt = txt.replace(regex, "\n<strong>$1</strong>");
+    });
 
-    // Also make sure "Trip Summary" has a line after it
-    txt = txt.replace(/Trip Summary(?!\s*\n)/, "Trip Summary\n");
+    // Add spacing after Trip Summary and Stop sections
+    txt = txt
+      .replace(/Trip Summary(?!\s*\n)/, "Trip Summary\n")
+      .replace(/(Stop \d+\s*[-–]\s*Night\s*\d+)/gi, "\n<strong>$1</strong>")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
 
-    // Final tidy: remove accidental double newlines, trim
-    txt = txt.replace(/\n{2,}/g, "\n").trim();
+    // Convert to HTML with line breaks
+    const htmlFormatted = txt.replace(/\n/g, "<br>");
 
-    // 5) Create a temporary render container preserving line breaks
+    // ---- STYLE TEMP CONTAINER ----
     const tempDiv = document.createElement("div");
     const isDark = document.body.classList.contains("dark-mode");
     tempDiv.style.cssText = `
@@ -1493,14 +1496,37 @@ async function exportToPDF() {
       background: ${isDark ? "#121212" : "#fff"};
       padding: 20px;
       width: ${Math.max(outputDiv.offsetWidth, 320)}px;
-      white-space: pre-wrap;   /* preserve \n */
-      line-height: 1.5;
-      box-sizing: border-box;
+      line-height: 1.6;
+      font-size: 14px;
+      white-space: normal;
     `;
-    tempDiv.textContent = txt;
+    tempDiv.innerHTML = htmlFormatted;
+
+    // ---- STYLE LABELS & HEADINGS ----
+    tempDiv.querySelectorAll("strong").forEach(el => {
+      const text = el.textContent.trim();
+
+      // Big section headers (Trip Summary, Stop 1 - Night 1, etc.)
+      if (/Trip Summary/i.test(text) || /Stop\s+\d+\s*[-–]\s*Night\s*\d+/i.test(text)) {
+        el.style.fontWeight = "bold";
+        el.style.fontSize = "18px";
+        el.style.textDecoration = "underline";
+        el.style.display = "block";
+        el.style.marginTop = "12px";
+        el.style.marginBottom = "4px";
+      } 
+      // Regular bold labels (like Total Distance, Fuel Price, etc.)
+      else {
+        el.style.fontWeight = "bold";
+        el.style.fontSize = "16px";
+        el.style.display = "inline-block";
+        el.style.marginTop = "6px";
+      }
+    });
+
     document.body.appendChild(tempDiv);
 
-    // 6) Capture the cleaned itinerary as an image
+    // ---- CAPTURE ITINERARY AS IMAGE ----
     const itineraryCanvas = await html2canvas(tempDiv, {
       useCORS: true,
       logging: false,
@@ -1512,7 +1538,7 @@ async function exportToPDF() {
     // ---- BUILD PDF ----
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-    // Map image at top
+    // Map image
     const imgWidth = 190;
     const mapHeight = (mapCanvas.height * imgWidth) / mapCanvas.width;
     pdf.addImage(mapImgData, "PNG", 10, 10, imgWidth, mapHeight);
@@ -1528,11 +1554,13 @@ async function exportToPDF() {
       pdf.addImage(itineraryImgData, "PNG", 10, yStart, imgWidth, itineraryHeight);
     }
 
+    // Save PDF
     pdf.save("trip_itinerary.pdf");
   } catch (err) {
     console.error("PDF export failed:", err);
     alert("Failed to generate PDF. Please try again.");
   } finally {
+    // Restore UI
     const hiddenElements = document.querySelectorAll("button, .no-print");
     hiddenElements.forEach(el => (el.style.display = ""));
     downloadBtn.innerText = originalText;
@@ -1540,7 +1568,7 @@ async function exportToPDF() {
   }
 }
 
-/* 🌗 Theme toggle (unchanged) */
+/* 🌗 Theme Toggle (unchanged) */
 const themeToggle = document.getElementById("themeToggle");
 const savedTheme = localStorage.getItem("theme");
 
@@ -1562,6 +1590,7 @@ themeToggle.addEventListener("click", () => {
     map.setOptions({ styles: isDark ? darkMapStyle : [] });
   }
 });
+
 
 
 
