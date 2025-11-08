@@ -1416,83 +1416,92 @@ async function exportToPDF() {
   }
 
   // Show loading feedback
-  const originalText = document.getElementById("downloadpdf").innerText;
-  document.getElementById("downloadpdf").innerText = "Generating PDF...";
-  document.getElementById("downloadpdf").disabled = true;
+  const downloadBtn = document.getElementById("downloadpdf");
+  const originalText = downloadBtn.innerText;
+  downloadBtn.innerText = "Generating PDF...";
+  downloadBtn.disabled = true;
 
   try {
-    // Capture map as image
+    // 🔒 Hide UI elements you don't want in the PDF
+    const elementsToHide = document.querySelectorAll(
+      ".remove-stop, .auto-stop-icon, button, #themeToggle"
+    );
+    elementsToHide.forEach(el => (el.style.display = "none"));
+
+    // 🗺️ Capture map
     const mapCanvas = await html2canvas(mapDiv, {
       useCORS: true,
       logging: false,
       scale: 2, // high quality
     });
-
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    // Get itinerary text
-    const itineraryText = outputDiv.innerText.trim() || "No itinerary available.";
+    // 🧭 Capture itinerary (as image)
+    const itineraryCanvas = await html2canvas(outputDiv, {
+      useCORS: true,
+      logging: false,
+      scale: 2,
+    });
+    const itineraryImgData = itineraryCanvas.toDataURL("image/png");
 
-    // Initialize PDF
+    // 🧾 Initialize PDF
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-    // Add map image (fit within page)
+    // 🖼️ Add map image
     const imgWidth = 190;
     const imgHeight = (mapCanvas.height * imgWidth) / mapCanvas.width;
     pdf.addImage(mapImgData, "PNG", 10, 10, imgWidth, imgHeight);
 
-    // Add itinerary text below map
-    const yStart = 10 + imgHeight + 10;
-    const lines = pdf.splitTextToSize(itineraryText, 180);
-    let y = yStart;
-    for (const line of lines) {
-      if (y > 280) { // end of A4 page
-        pdf.addPage();
-        y = 20;
+    // 🖼️ Add itinerary image
+    const itineraryImgWidth = 190;
+    const itineraryImgHeight = (itineraryCanvas.height * itineraryImgWidth) / itineraryCanvas.width;
+
+    let yStart = 10 + imgHeight + 10;
+
+    if (yStart + itineraryImgHeight <= 290) {
+      // Fits on same page
+      pdf.addImage(itineraryImgData, "PNG", 10, yStart, itineraryImgWidth, itineraryImgHeight);
+    } else {
+      // Split into pages if long
+      let remainingHeight = itineraryImgHeight;
+      let position = 0;
+      const pageHeight = 297; // A4 in mm
+
+      while (remainingHeight > 0) {
+        pdf.addImage(
+          itineraryImgData,
+          "PNG",
+          10,
+          10,
+          itineraryImgWidth,
+          itineraryImgHeight,
+          '',
+          'FAST'
+        );
+        remainingHeight -= pageHeight;
+        position += pageHeight;
+        if (remainingHeight > 0) pdf.addPage();
       }
-      pdf.text(line, 10, y);
-      y += 7;
     }
 
-
-    // Save file
+    // 💾 Save file
     pdf.save("trip_itinerary.pdf");
+
   } catch (err) {
     console.error("PDF export failed:", err);
     alert("Failed to generate PDF. Please try again.");
   } finally {
-    // Restore button state
-    document.getElementById("downloadpdf").innerText = originalText;
-    document.getElementById("downloadpdf").disabled = false;
+    // ✅ Restore hidden elements
+    document.querySelectorAll(
+      ".remove-stop, .auto-stop-icon, button, #themeToggle"
+    ).forEach(el => (el.style.display = ""));
+
+    // ✅ Restore button state
+    downloadBtn.innerText = originalText;
+    downloadBtn.disabled = false;
   }
 }
 
-// 🌗 Theme Toggle (Animated + Persistent)
-const themeToggle = document.getElementById("themeToggle");
-const savedTheme = localStorage.getItem("theme");
-
-if (savedTheme === "dark") {
-  document.body.classList.add("dark-mode");
-  themeToggle.innerHTML = '<i class="fa-solid fa-sun"></i>';
-}
-
-// Apply dark mode map style immediately
-if (savedTheme === "dark" && map) map.setOptions({ styles: darkMapStyle });
-
-themeToggle.addEventListener("click", () => {
-  document.body.classList.toggle("dark-mode");
-  
-  const isDark = document.body.classList.contains("dark-mode");
-  themeToggle.innerHTML = isDark
-    ? '<i class="fa-solid fa-sun"></i>'
-    : '<i class="fa-solid fa-moon"></i>';
-  localStorage.setItem("theme", isDark ? "dark" : "light");
-
-  // 🗺️ Apply map theme instantly
-  if (map) {
-    map.setOptions({ styles: isDark ? darkMapStyle : [] });
-  }
-});
 
 
 
