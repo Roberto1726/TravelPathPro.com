@@ -1440,8 +1440,8 @@ async function exportToPDF() {
     
     // 🔧 Clean up special characters
     itineraryText = itineraryText
-      .replace(/&?\s*\u00A1/g, "")  // remove "¡" (U+00A1), with optional preceding &
-      .replace(/!\u2019/g, ">");     // replace "!’" where ’ is U+2019 with ">"
+      .replace(/&¡/g, "")   // remove "&¡"
+      .replace(/!’/g, ">"); // replace "!’" with ">"
 
 
 
