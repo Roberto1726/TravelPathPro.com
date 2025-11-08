@@ -1409,98 +1409,188 @@ async function exportToPDF() {
   const { jsPDF } = window.jspdf;
   const outputDiv = document.getElementById("output");
   const mapDiv = document.getElementById("map");
+  const downloadBtn = document.getElementById("downloadpdf");
 
   if (!outputDiv || !mapDiv) {
     alert("Missing map or itinerary content.");
     return;
   }
 
-  // Show loading feedback
-  const downloadBtn = document.getElementById("downloadpdf");
+  // --- helper: get the JS Maps key from the existing script tag ---
+  function getMapsKeyFromScript() {
+    const script = Array.from(document.scripts).find(s =>
+      s.src && s.src.includes("maps.googleapis.com/maps/api/js")
+    );
+    if (!script) return null;
+    const key = new URL(script.src).searchParams.get("key");
+    return key;
+  }
+
+  // --- helper: load an image as a Promise ---
+  function loadImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  // --- helper: build a Static Maps URL mirroring current view & route ---
+  function buildStaticMapUrl() {
+    const key = getMapsKeyFromScript();
+    if (!key) return null;
+
+    // Center/zoom from the live map
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+
+    // Try to pull route + start/dest from DirectionsRenderer
+    let pathParam = "";
+    let markerParams = [];
+
+    try {
+      const dir = (window.directionsRenderer || directionsRenderer)?.getDirections?.();
+      if (dir && dir.routes && dir.routes[0]) {
+        const route = dir.routes[0];
+        // encoded overview polyline
+        const enc = route.overview_polyline?.toString?.() || route.overview_polyline?.points || "";
+        if (enc) {
+          // Styled path color and weight; feel free to tweak
+          pathParam = `&path=weight:5|color:0x004aadff|enc:${encodeURIComponent(enc)}`;
+        }
+
+        // Start/End markers
+        const firstLeg = route.legs[0];
+        const lastLeg  = route.legs[route.legs.length - 1];
+        if (firstLeg?.start_location) {
+          markerParams.push(`markers=color:green|label:S|${firstLeg.start_location.lat()},${firstLeg.start_location.lng()}`);
+        }
+        if (lastLeg?.end_location) {
+          markerParams.push(`markers=color:red|label:D|${lastLeg.end_location.lat()},${lastLeg.end_location.lng()}`);
+        }
+      }
+    } catch (_) {}
+
+    // Build URL (use 640x400 @ scale=2 for crisp 1280x800)
+    const base = "https://maps.googleapis.com/maps/api/staticmap";
+    const size = "640x400";
+    const scale = 2; // retina
+    const params = [
+      `key=${encodeURIComponent(key)}`,
+      `size=${size}`,
+      `scale=${scale}`,
+      `maptype=roadmap`,
+      `center=${center.lat()},${center.lng()}`,
+      `zoom=${zoom}`
+    ];
+
+    if (pathParam) params.push(pathParam);
+    if (markerParams.length) params.push(...markerParams.map(p => p));
+
+    return `${base}?${params.join("&")}`;
+  }
+
+  // --- helper: capture an element to canvas via html2canvas ---
+  async function captureElement(el, scale = 2) {
+    return await html2canvas(el, {
+      useCORS: true,
+      logging: false,
+      scale
+    });
+  }
+
+  // --- helper: add a tall canvas to PDF by slicing into pages ---
+  function addCanvasAsPagedImage(pdf, canvas, xMm, yMm, pageWidthMm, pageHeightMm, marginMm = 10) {
+    // Scale to fit the target width (pageWidthMm), then compute mm-per-px
+    const targetWidthMm = pageWidthMm - marginMm * 2;
+    const mmPerPx = targetWidthMm / canvas.width;
+    const pageInnerHeightMm = pageHeightMm - marginMm * 2;
+    const visiblePxPerPage = Math.floor(pageInnerHeightMm / mmPerPx);
+
+    const ctx = canvas.getContext("2d");
+    let offsetPx = 0;
+
+    while (offsetPx < canvas.height) {
+      const sliceHeightPx = Math.min(visiblePxPerPage, canvas.height - offsetPx);
+
+      // Create an offscreen slice
+      const sliceCanvas = document.createElement("canvas");
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sliceHeightPx;
+      const sctx = sliceCanvas.getContext("2d");
+
+      // Draw the slice
+      sctx.drawImage(canvas, 0, -offsetPx);
+
+      const sliceData = sliceCanvas.toDataURL("image/png");
+      const sliceHeightMm = sliceHeightPx * mmPerPx;
+
+      // Add slice to PDF
+      pdf.addImage(sliceData, "PNG", marginMm, marginMm, targetWidthMm, sliceHeightMm, "", "FAST");
+
+      offsetPx += sliceHeightPx;
+      if (offsetPx < canvas.height) pdf.addPage();
+    }
+  }
+
+  // --- UI: show loading ---
   const originalText = downloadBtn.innerText;
   downloadBtn.innerText = "Generating PDF...";
   downloadBtn.disabled = true;
 
+  // Hide things you don’t want in the PDF (buttons, theme toggle, etc.)
+  const elementsToHide = document.querySelectorAll(".remove-stop, .auto-stop-icon, button, #themeToggle");
+  elementsToHide.forEach(el => (el.style.display = "none"));
+
   try {
-    // 🔒 Hide UI elements you don't want in the PDF
-    const elementsToHide = document.querySelectorAll(
-      ".remove-stop, .auto-stop-icon, button, #themeToggle"
-    );
-    elementsToHide.forEach(el => (el.style.display = "none"));
+    // 1) Get a Static Map snapshot (reliable)
+    const staticUrl = buildStaticMapUrl();
+    if (!staticUrl) throw new Error("Could not resolve Google Maps API key or map state.");
 
-    // 🗺️ Capture map
-    const mapCanvas = await html2canvas(mapDiv, {
-      useCORS: true,
-      logging: false,
-      scale: 2, // high quality
-    });
-    const mapImgData = mapCanvas.toDataURL("image/png");
+    const staticImg = await loadImage(staticUrl);
 
-    // 🧭 Capture itinerary (as image)
-    const itineraryCanvas = await html2canvas(outputDiv, {
-      useCORS: true,
-      logging: false,
-      scale: 2,
-    });
-    const itineraryImgData = itineraryCanvas.toDataURL("image/png");
+    // 2) Capture itinerary area as image
+    const itineraryCanvas = await captureElement(outputDiv, 2);
 
-    // 🧾 Initialize PDF
+    // 3) Assemble PDF
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = 210, pageH = 297, margin = 10;
 
-    // 🖼️ Add map image
-    const imgWidth = 190;
-    const imgHeight = (mapCanvas.height * imgWidth) / mapCanvas.width;
-    pdf.addImage(mapImgData, "PNG", 10, 10, imgWidth, imgHeight);
+    // Place the static map at the top (fit to width)
+    const mapTargetW = pageW - margin * 2; // 190mm
+    const mapRatio = staticImg.height / staticImg.width;
+    const mapTargetH = Math.min(90, mapTargetW * mapRatio); // keep it reasonable on the first page
 
-    // 🖼️ Add itinerary image
-    const itineraryImgWidth = 190;
-    const itineraryImgHeight = (itineraryCanvas.height * itineraryImgWidth) / itineraryCanvas.width;
+    pdf.addImage(staticImg, "PNG", margin, margin, mapTargetW, mapTargetH, "", "FAST");
 
-    let yStart = 10 + imgHeight + 10;
-
-    if (yStart + itineraryImgHeight <= 290) {
-      // Fits on same page
-      pdf.addImage(itineraryImgData, "PNG", 10, yStart, itineraryImgWidth, itineraryImgHeight);
-    } else {
-      // Split into pages if long
-      let remainingHeight = itineraryImgHeight;
-      let position = 0;
-      const pageHeight = 297; // A4 in mm
-
-      while (remainingHeight > 0) {
-        pdf.addImage(
-          itineraryImgData,
-          "PNG",
-          10,
-          10,
-          itineraryImgWidth,
-          itineraryImgHeight,
-          '',
-          'FAST'
-        );
-        remainingHeight -= pageHeight;
-        position += pageHeight;
-        if (remainingHeight > 0) pdf.addPage();
-      }
+    // If there’s room below the map on page 1, start the itinerary there; otherwise, new page
+    const firstItineraryY = margin + mapTargetH + 8;
+    if (firstItineraryY < pageH - margin) {
+      // Add itinerary slices starting below the map
+      const remainingHeightMm = pageH - firstItineraryY - margin;
+      // Slice logic always starts at top; simplest is: put first page as a full page (new page)
+      // To truly start mid-page, we’d need partial slice. For simplicity, we’ll start on a new page:
+      pdf.addPage();
     }
 
-    // 💾 Save file
-    pdf.save("trip_itinerary.pdf");
+    // Add itinerary (paged)
+    addCanvasAsPagedImage(pdf, itineraryCanvas, margin, margin, pageW, pageH, margin);
 
+    // 4) Save
+    pdf.save("trip_itinerary.pdf");
   } catch (err) {
     console.error("PDF export failed:", err);
     alert("Failed to generate PDF. Please try again.");
   } finally {
-    // ✅ Restore hidden elements
-    document.querySelectorAll(
-      ".remove-stop, .auto-stop-icon, button, #themeToggle"
-    ).forEach(el => (el.style.display = ""));
-
-    // ✅ Restore button state
+    // Restore UI
+    elementsToHide.forEach(el => (el.style.display = ""));
     downloadBtn.innerText = originalText;
     downloadBtn.disabled = false;
   }
 }
+
 
 
 
