@@ -1421,12 +1421,6 @@ async function exportToPDF() {
   document.getElementById("downloadpdf").disabled = true;
 
   try {
-    // 🔒 Hide unwanted elements before capture (buttons, auto-stop icons, etc.)
-    const elementsToHide = document.querySelectorAll(
-      "button, .auto-stop-icon, .remove-stop, #themeToggle"
-    );
-    elementsToHide.forEach(el => (el.style.display = "none"));
-
     // Capture map as image
     const mapCanvas = await html2canvas(mapDiv, {
       useCORS: true,
@@ -1436,14 +1430,8 @@ async function exportToPDF() {
 
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    let itineraryText = outputDiv.innerText.trim() || "No itinerary available.";
-    
-    // 🔧 Clean up special characters
-    itineraryText = itineraryText
-      .replace(/&¡/g, "")   // remove "&¡"
-      .replace(/!’/g, ">"); // replace "!’" with ">"
-
-
+    // Get itinerary text
+    const itineraryText = outputDiv.innerText.trim() || "No itinerary available.";
 
     // Initialize PDF
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -1466,17 +1454,13 @@ async function exportToPDF() {
       y += 7;
     }
 
+
     // Save file
     pdf.save("trip_itinerary.pdf");
   } catch (err) {
     console.error("PDF export failed:", err);
     alert("Failed to generate PDF. Please try again.");
   } finally {
-    // ✅ Restore hidden elements after capture
-    document.querySelectorAll(
-      "button, .auto-stop-icon, .remove-stop, #themeToggle"
-    ).forEach(el => (el.style.display = ""));
-
     // Restore button state
     document.getElementById("downloadpdf").innerText = originalText;
     document.getElementById("downloadpdf").disabled = false;
