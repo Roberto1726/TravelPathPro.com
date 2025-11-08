@@ -1430,17 +1430,39 @@ async function exportToPDF() {
     const mapCanvas = await html2canvas(mapDiv, {
       useCORS: true,
       logging: false,
-      scale: 2, // high quality
+      scale: 2,
     });
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    // Capture itinerary as image
-    const itineraryCanvas = await html2canvas(outputDiv, {
+    // 🧹 CLEAN ITINERARY CONTENT
+    const cleanedHTML = outputDiv.innerText
+      .replace(/[^\x20-\x7E\n\r]/g, "") // remove weird symbols
+      .replace(/Booking\.com.*|Expedia.*|Compare Prices.*/gi, "") // remove unwanted lines
+      .replace(/[!¡Øßè'þÜ¸=<>]/g, "") // remove stray punctuation
+      .replace(/\s{2,}/g, " ") // normalize spaces
+      .replace(/(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})/g, "$1 > $2"); // clean date range
+
+    // Create a temporary cleaned div to render
+    const tempDiv = document.createElement("div");
+    tempDiv.style.cssText = `
+      font-family: Arial, sans-serif;
+      color: ${document.body.classList.contains("dark-mode") ? "#fff" : "#000"};
+      background: ${document.body.classList.contains("dark-mode") ? "#121212" : "#fff"};
+      padding: 20px;
+      width: ${outputDiv.offsetWidth}px;
+      white-space: pre-line;
+    `;
+    tempDiv.innerText = cleanedHTML;
+    document.body.appendChild(tempDiv);
+
+    // Capture cleaned itinerary as image
+    const itineraryCanvas = await html2canvas(tempDiv, {
       useCORS: true,
       logging: false,
-      scale: 2, // high quality
+      scale: 2,
     });
     const itineraryImgData = itineraryCanvas.toDataURL("image/png");
+    document.body.removeChild(tempDiv);
 
     // Initialize PDF
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -1455,7 +1477,6 @@ async function exportToPDF() {
     const itineraryHeight = (itineraryCanvas.height * imgWidth) / itineraryCanvas.width;
 
     if (yStart + itineraryHeight > 290) {
-      // add a new page if too long
       pdf.addPage();
       pdf.addImage(itineraryImgData, "PNG", 10, 20, imgWidth, itineraryHeight);
     } else {
@@ -1504,8 +1525,6 @@ themeToggle.addEventListener("click", () => {
     map.setOptions({ styles: isDark ? darkMapStyle : [] });
   }
 });
-
-
 
 
 
