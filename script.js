@@ -223,6 +223,15 @@ function initAutocomplete() {
   }
 }
 
+['avoidHighways', 'avoidTolls', 'avoidFerries'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => {
+    if (window.map && typeof calculateAndDisplayRoute === 'function') {
+      calculateAndDisplayRoute();
+    }
+  });
+});
+
 window.initAutocomplete = initAutocomplete;
 
 
@@ -662,9 +671,9 @@ async function CalculateLegs() {
   const maxDailyMeters = toMeters(maxDailyDistance, distanceUnit);
 
   // Read avoid preferences
-  const avoidHighways = document.getElementById('avoidHighways').checked;
-  const avoidTolls = document.getElementById('avoidTolls').checked;
-  const avoidFerries = document.getElementById('avoidFerries').checked;
+  const avoidHighways = document.getElementById('avoidHighways')?.checked || false;
+  const avoidTolls = document.getElementById('avoidTolls')?.checked || false;
+  const avoidFerries = document.getElementById('avoidFerries')?.checked || false;
   
   const numAdults = parseInt(document.getElementById("adults").value) || 1;
   const numChildren = parseInt(document.getElementById("children").value) || 0;
