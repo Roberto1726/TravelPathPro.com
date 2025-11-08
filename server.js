@@ -59,7 +59,7 @@ app.post("/api/compute-route", async (req, res) => {
     return res.status(500).json({ error: "Google Maps API key is not configured." });
   }
 
-  const { origin, destination, waypoints } = req.body || {};
+  const { origin, destination, waypoints, routeModifiers } = req.body || {};
 
   if (!origin || !destination) {
     return res.status(400).json({ error: "Origin and destination are required." });
@@ -87,6 +87,18 @@ app.post("/api/compute-route", async (req, res) => {
     languageCode: "en-US",
     units: "METRIC",
   };
+
+  if (routeModifiers && typeof routeModifiers === "object") {
+    const modifiersPayload = {
+      avoidFerries: Boolean(routeModifiers.avoidFerries),
+      avoidHighways: Boolean(routeModifiers.avoidHighways),
+      avoidTolls: Boolean(routeModifiers.avoidTolls),
+    };
+
+    if (modifiersPayload.avoidFerries || modifiersPayload.avoidHighways || modifiersPayload.avoidTolls) {
+      requestBody.routeModifiers = modifiersPayload;
+    }
+  }
 
   if (intermediates.length) {
     requestBody.intermediates = intermediates;

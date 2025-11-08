@@ -840,6 +840,9 @@ async function CalculateLegs() {
           originText: starting,
           destinationText: destination,
           waypointMetadata,
+          avoidHighways,
+          avoidTolls,
+          avoidFerries,
         });
       } catch (fallbackError) {
         hideSpinner();
@@ -2109,6 +2112,9 @@ async function computeRouteUsingRoutesApi({
   originText,
   destinationText,
   waypointMetadata = [],
+  avoidHighways = false,
+  avoidTolls = false,
+  avoidFerries = false,
 }) {
   const originLiteral = extractLatLngLiteral(originLatLng);
   const destinationLiteral = extractLatLngLiteral(destinationLatLng);
@@ -2121,6 +2127,16 @@ async function computeRouteUsingRoutesApi({
       ? { lat: destinationLiteral.lat, lng: destinationLiteral.lng, label: destinationText }
       : { address: destinationText },
   };
+
+  const routeModifiers = {
+    avoidHighways: Boolean(avoidHighways),
+    avoidTolls: Boolean(avoidTolls),
+    avoidFerries: Boolean(avoidFerries),
+  };
+
+  if (routeModifiers.avoidHighways || routeModifiers.avoidTolls || routeModifiers.avoidFerries) {
+    payload.routeModifiers = routeModifiers;
+  }
 
   if (Array.isArray(waypointMetadata) && waypointMetadata.length) {
     payload.waypoints = waypointMetadata
