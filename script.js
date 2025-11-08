@@ -1437,7 +1437,13 @@ async function exportToPDF() {
     const mapImgData = mapCanvas.toDataURL("image/png");
 
     // Get itinerary text
-    const itineraryText = outputDiv.innerText.trim() || "No itinerary available.";
+    let itineraryText = outputDiv.innerText.trim() || "No itinerary available.";
+
+    // 🔧 Clean up special characters
+    itineraryText = itineraryText
+      .replace(/&¡/g, "")     // remove "&¡"
+      .replace(/!’/g, ">");   // replace "!’" with ">"
+
 
     // Initialize PDF
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
