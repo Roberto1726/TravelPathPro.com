@@ -1319,9 +1319,30 @@ if (legDistanceKm > maxDailyDistance) {
     }));
 
 
+    function renderTripFlow(stops) {
+      const container = document.getElementById("tripFlow");
+      container.innerHTML = "";
+    
+      stops.forEach((stop, i) => {
+        const stopEl = document.createElement("div");
+        stopEl.className = "stop";
+        stopEl.innerHTML = `<span>${stop.name}</span>`;
+        container.appendChild(stopEl);
+    
+        if (i < stops.length - 1) {
+          const connector = document.createElement("div");
+          connector.className = "connector";
+          container.appendChild(connector);
+        }
+      });
+    }
+    
+    
 
     // 🧾 Display itinerary
     document.getElementById("output").innerHTML = output;
+    renderTripFlow(itineraryStops);
+
 
     // 🔄 Auto-expand the output section dynamically
     const outputEl = document.getElementById("output");
