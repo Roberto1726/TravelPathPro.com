@@ -1434,13 +1434,31 @@ async function exportToPDF() {
     });
     const mapImgData = mapCanvas.toDataURL("image/png");
 
-    // 🧹 CLEAN ITINERARY CONTENT
-    const cleanedHTML = outputDiv.innerText
+    // 🧹 CLEAN AND FORMAT ITINERARY CONTENT
+    let cleanedText = outputDiv.innerText;
+
+    // Remove non-printable characters and unwanted sections
+    cleanedText = cleanedText
       .replace(/[^\x20-\x7E\n\r]/g, "") // remove weird symbols
       .replace(/Booking\.com.*|Expedia.*|Compare Prices.*/gi, "") // remove unwanted lines
       .replace(/[!¡Øßè'þÜ¸=<>]/g, "") // remove stray punctuation
       .replace(/\s{2,}/g, " ") // normalize spaces
       .replace(/(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})/g, "$1 > $2"); // clean date range
+
+    // 🪄 Insert line breaks intelligently for better layout
+    cleanedText = cleanedText
+      // Break between key-value sections for summaries
+      .replace(/(Total Distance:[^A-Z]*)/g, "$1\n")
+      .replace(/(Max Daily Distance:[^A-Z]*)/g, "$1\n")
+      .replace(/(Estimated Overnight Stops:[^A-Z]*)/g, "$1\n")
+      .replace(/(Suggested Overnight Stops:[^A-Z]*)/g, "$1\n")
+      .replace(/(Children ages:[^A-Z]*)/g, "$1\n")
+      .replace(/(Vehicle:[^A-Z]*)/g, "$1\n")
+      .replace(/(Average Consumption:[^A-Z]*)/g, "$1\n")
+      .replace(/(Fuel Price:[^A-Z]*)/g, "$1\n")
+      .replace(/(Estimated Total Fuel Cost:[^A-Z]*)/g, "$1\n")
+      .replace(/(Stop \d+ Night)/g, "\n$1") // ensure stop sections start on new lines
+      .replace(/Trip Summary/g, "Trip Summary\n"); // break after title
 
     // Create a temporary cleaned div to render
     const tempDiv = document.createElement("div");
@@ -1451,8 +1469,9 @@ async function exportToPDF() {
       padding: 20px;
       width: ${outputDiv.offsetWidth}px;
       white-space: pre-line;
+      line-height: 1.5;
     `;
-    tempDiv.innerText = cleanedHTML;
+    tempDiv.innerText = cleanedText.trim();
     document.body.appendChild(tempDiv);
 
     // Capture cleaned itinerary as image
@@ -1472,7 +1491,7 @@ async function exportToPDF() {
     const mapHeight = (mapCanvas.height * imgWidth) / mapCanvas.width;
     pdf.addImage(mapImgData, "PNG", 10, 10, imgWidth, mapHeight);
 
-    // Add itinerary image below the map
+    // Add itinerary image below map
     const yStart = 10 + mapHeight + 10;
     const itineraryHeight = (itineraryCanvas.height * imgWidth) / itineraryCanvas.width;
 
@@ -1525,6 +1544,7 @@ themeToggle.addEventListener("click", () => {
     map.setOptions({ styles: isDark ? darkMapStyle : [] });
   }
 });
+
 
 
 
