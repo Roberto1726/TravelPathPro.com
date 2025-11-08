@@ -1378,10 +1378,9 @@ function saveTrip() {
   const vehicleType = document.getElementById("vehicleType")?.value || "car";
   const fuelType = document.getElementById("fuelType")?.value || "gas";
   const fuelPrice = parseFloat(document.getElementById("fuelPrice")?.value) || 0;
-
-  avoidHighways: document.getElementById('avoidHighways').checked,
-  avoidTolls: document.getElementById('avoidTolls').checked,
-  avoidFerries: document.getElementById('avoidFerries').checked,
+  const avoidHighways = document.getElementById('avoidHighways').checked;
+  const avoidTolls = document.getElementById('avoidTolls').checked;
+  const avoidFerries = document.getElementById('avoidFerries').checked;
 
 
   // 👶 Children ages
@@ -1411,6 +1410,9 @@ function saveTrip() {
     vehicleType,
     fuelType,
     fuelPrice,
+    avoidHighways,
+    avoidTolls,
+    avoidFerries,
     distanceUnit, // ✅ add this line
     dateSaved: new Date().toLocaleString()
   };
@@ -1788,6 +1790,18 @@ function resolveApiBaseUrl() {
   return "";
 }
 
+function useFallbackMapsKey(reason) {
+  if (typeof FALLBACK_GOOGLE_MAPS_API_KEY === "string" && FALLBACK_GOOGLE_MAPS_API_KEY.trim()) {
+    console.warn(`Falling back to built-in Google Maps API key: ${reason}`);
+    return FALLBACK_GOOGLE_MAPS_API_KEY.trim();
+  }
+
+  throw new Error(
+    `${reason} Configure a Google Maps API key via window.GOOGLE_MAPS_API_KEY, a <meta name='google-maps-api-key'> tag, or ` +
+      `provide a backend /api/maps-key endpoint.`
+  );
+}
+
 async function requestMapsKey() {
   try {
     const apiBase = resolveApiBaseUrl();
@@ -1806,30 +1820,27 @@ async function requestMapsKey() {
       headers: { Accept: "application/json" },
       credentials: "same-origin",
     });
+
     if (!response.ok) {
       const { error } = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(
+      return useFallbackMapsKey(
         error || `Unable to retrieve Google Maps API key from the server (endpoint: ${endpointUrl}).`
       );
     }
 
     const data = await response.json();
     if (!data?.key) {
-      throw new Error("Google Maps API key is not configured on the server.");
+      return useFallbackMapsKey("Google Maps API key is not configured on the server.");
     }
 
     if (typeof data.key !== "string" || !data.key.trim()) {
-      throw new Error("Google Maps API key returned by the server is invalid.");
+      return useFallbackMapsKey("Google Maps API key returned by the server is invalid.");
     }
 
     return data.key.trim();
   } catch (networkError) {
     if (networkError instanceof TypeError) {
-      if (typeof FALLBACK_GOOGLE_MAPS_API_KEY === "string" && FALLBACK_GOOGLE_MAPS_API_KEY.trim()) {
-        return FALLBACK_GOOGLE_MAPS_API_KEY.trim();
-      }
-
-      throw new Error(
+      return useFallbackMapsKey(
         "Unable to contact the /api/maps-key endpoint. If you're serving the site statically or from a different domain, " +
           "set window.TRAVELPATHPRO_API_BASE_URL or add <meta name='travelpathpro-api-base'> to point to the server."
       );
