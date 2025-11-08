@@ -148,11 +148,29 @@
 
 
 <script>
+  function safeParseTrips(rawValue) {
+    if (typeof rawValue !== 'string' || !rawValue.trim()) {
+      return [];
+    }
+
+    try {
+      return JSON.parse(rawValue) || [];
+    } catch (error) {
+      console.warn('Failed to parse saved trips from localStorage', error);
+      try {
+        localStorage.removeItem('savedTrips');
+      } catch (removeErr) {
+        console.warn('Unable to remove corrupt savedTrips key', removeErr);
+      }
+      return [];
+    }
+  }
+
   function loadTrips() {
     const container = document.getElementById('tripsContainer');
     container.innerHTML = '';
 
-    const savedTrips = JSON.parse(localStorage.getItem('savedTrips')) || [];
+    const savedTrips = safeParseTrips(localStorage.getItem('savedTrips'));
 
     if (savedTrips.length === 0) {
       container.innerHTML = '<p>No saved trips yet. Go plan one!</p>';
@@ -209,14 +227,14 @@
 
   function saveTitleChange(index, newTitle) {
     if (!newTitle) return;
-    const trips = JSON.parse(localStorage.getItem('savedTrips')) || [];
+    const trips = safeParseTrips(localStorage.getItem('savedTrips'));
     if (!trips[index]) return;
     trips[index].title = newTitle;
     localStorage.setItem('savedTrips', JSON.stringify(trips));
   }
 
   function viewTrip(index) {
-    const trips = JSON.parse(localStorage.getItem('savedTrips')) || [];
+    const trips = safeParseTrips(localStorage.getItem('savedTrips'));
     const trip = trips[index];
     if (!trip) return;
 
@@ -245,14 +263,14 @@
 
   function deleteTrip(index) {
     if (!confirm("Are you sure you want to delete this trip?")) return;
-    const trips = JSON.parse(localStorage.getItem('savedTrips')) || [];
+    const trips = safeParseTrips(localStorage.getItem('savedTrips'));
     trips.splice(index, 1);
     localStorage.setItem('savedTrips', JSON.stringify(trips));
     loadTrips();
   }
 
   function duplicateTrip(index) {
-    const trips = JSON.parse(localStorage.getItem('savedTrips')) || [];
+    const trips = safeParseTrips(localStorage.getItem('savedTrips'));
     const trip = trips[index];
     if (!trip) return;
 
