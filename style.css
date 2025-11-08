@@ -7,6 +7,7 @@ body {
   padding: 0;
   line-height: 1.6;
   transition: background 0.6s ease, color 0.6s ease;
+  overflow-x: hidden; /* prevent sideways scroll on mobile */
 }
 
 /* === HEADER === */
@@ -54,6 +55,7 @@ main {
   padding: 30px;
   max-width: 1200px;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 /* === BUTTONS === */
@@ -72,13 +74,14 @@ button {
   background: linear-gradient(180deg, #0078ff, #0064d2);
   transition: all 0.25s ease;
   box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  width: auto;
+  max-width: 100%;
 }
 button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 10px rgba(0,0,0,0.25);
 }
 
-/* Different button accents */
 button[onclick*="CalculateLegs"] { background: linear-gradient(180deg, #0078d7, #005fa3); }
 button[onclick*="OpenBookingCom"] { background: linear-gradient(180deg, #1a73e8, #1557b0); }
 button[onclick*="OpenGoogleMaps"] { background: linear-gradient(180deg, #34a853, #27813f); }
@@ -86,36 +89,40 @@ button[onclick*="OpenABRP"] { background: linear-gradient(180deg, #ff9800, #e689
 button[onclick*="saveTrip"] { background: linear-gradient(180deg, #16b31d, #0e8e15); }
 #downloadpdf { background: linear-gradient(180deg, #d32f2f, #b71c1c); }
 
-button i {
-  font-size: 16px;
-}
-
-/* === MAP AND OUTPUT PANELS === */
+/* === LAYOUT PANELS === */
 .main-layout {
   display: flex;
   gap: 30px;
   flex-wrap: wrap;
   align-items: flex-start;
+  justify-content: space-between;
+  box-sizing: border-box;
 }
 
-.inputs-panel, .map-panel {
+.inputs-panel, 
+.map-panel {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 3px 8px rgba(0,0,0,0.1);
   padding: 20px;
+  box-sizing: border-box;
 }
 
 .inputs-panel {
   flex: 1 1 350px;
   max-width: 400px;
+  min-width: 280px;
 }
+
 .map-panel {
   flex: 1 1 700px;
   display: flex;
   flex-direction: column;
   height: auto;
+  min-width: 300px;
 }
 
+/* === MAP & OUTPUT === */
 #map {
   width: 100%;
   height: 450px;
@@ -124,18 +131,16 @@ button i {
 }
 
 #output {
-  flex: 1 1 350px;
   background: white;
-  padding: 15px;
+  padding: 20px;
   border-radius: 10px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   overflow-y: auto;
-  max-height: 80vh; /* dynamic cap based on viewport height */
+  max-height: 80vh;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #333;
 }
-
-
-
-
 
 /* === DARK MODE === */
 body.dark-mode {
@@ -178,6 +183,7 @@ body.dark-mode a {
   font-size: 18px;
   transition: all 0.4s ease;
   box-shadow: 0 0 8px rgba(0,0,0,0.3);
+  z-index: 20;
 }
 #themeToggle:hover {
   transform: rotate(20deg) scale(1.1);
@@ -189,235 +195,9 @@ body.dark-mode #themeToggle {
   transform: rotate(180deg);
 }
 
-/* === STOP ENTRY === */
-.stop-entry {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-.stop-entry input[type="text"] {
-  flex: 1;
-}
-.stop-entry input[type="number"] {
-  width: 80px;
-}
-.stop-entry button.remove-stop {
-  background: #ff4d4d;
-  border: none;
-  color: white;
-  padding: 5px 10px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-.stop-entry button.remove-stop:hover {
-  background: #d93636;
-}
-
-/* === RESPONSIVE === */
-@media (max-width: 900px) {
-  .main-layout {
-    flex-direction: column;
-  }
-  #map {
-    height: 400px;
-  }
-}
-
-
-/* === FORM ELEMENTS === */
-
-label {
-  display: block;
-  font-weight: 600;
-  color: #004aad;
-  margin-top: 12px;
-  margin-bottom: 6px;
-  font-size: 15px;
-}
-
-input[type="text"],
-input[type="number"],
-input[type="date"],
-select {
-  width: 93%;
-  padding: 10px 12px;
-  font-size: 15px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  transition: all 0.25s ease;
-}
-
-input[type="text"]:focus,
-input[type="number"]:focus,
-input[type="date"]:focus,
-select:focus {
-  border-color: #0078d7;
-  box-shadow: 0 0 6px rgba(0,120,255,0.3);
-  outline: none;
-  background: #f9fbff;
-}
-
-/* Inline button near inputs (like "Use My Location") */
-button#useMyLocationBtn {
-  background: #004aad;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 15px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-button#useMyLocationBtn:hover {
-  background: #003b8c;
-}
-
-/* === CHILDREN AGES === */
-#childrenAges select {
-  width: 80px;
-  margin-right: 8px;
-  margin-bottom: 6px;
-}
-
-/* === INPUT GROUPS === */
-.input-group {
-  background: #f9fbff;
-  border: 1px solid #dce3f0;
-  border-radius: 10px;
-  padding: 15px;
-  margin-top: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-.input-group label {
-  color: #003b8c;
-  margin-top: 5px;
-}
-
-/* === DARK MODE FORM STYLES === */
-body.dark-mode input,
-body.dark-mode select {
-  background: #222;
-  color: #f0f0f0;
-  border: 1px solid #444;
-}
-body.dark-mode label {
-  color: #ffd700;
-}
-body.dark-mode .input-group {
-  background: #1f1f1f;
-  border-color: #444;
-}
-
-
-/* === TRIP SUMMARY / OUTPUT CARDS === */
-#output {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-  font-size: 15px;
-  line-height: 1.5;
-  color: #333;
-}
-
-/* Each leg or stop as a card */
-.leg-card {
-  background: #f8faff;
-  border-left: 5px solid #004aad;
-  border-radius: 10px;
-  padding: 12px 15px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.leg-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
-}
-
-.leg-card h4 {
-  margin: 0 0 6px 0;
-  color: #004aad;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.leg-card h4 i {
-  color: #0078d7;
-  font-size: 17px;
-}
-
-/* Distance + duration badges */
-.leg-info {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 5px;
-}
-
-.badge {
-  background: #e9f1ff;
-  color: #004aad;
-  font-weight: 600;
-  font-size: 13px;
-  border-radius: 20px;
-  padding: 5px 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.badge i {
-  font-size: 14px;
-}
-
-/* Leg notes or hotel suggestion */
-.leg-note {
-  margin-top: 6px;
-  font-style: italic;
-  color: #555;
-}
-
-/* Add dividers for clarity */
-#output hr {
-  border: 0;
-  border-top: 1px solid #ddd;
-  margin: 10px 0;
-}
-
-/* === DARK MODE TRIP CARDS === */
-body.dark-mode #output {
-  background: #1e1e1e;
-  color: #e0e0e0;
-}
-
-body.dark-mode .leg-card {
-  background: #242424;
-  border-left-color: #00bfff;
-  box-shadow: 0 2px 6px rgba(255,255,255,0.05);
-}
-body.dark-mode .leg-card h4 {
-  color: #00bfff;
-}
-body.dark-mode .badge {
-  background: #002b44;
-  color: #9cdcff;
-}
-body.dark-mode .leg-note {
-  color: #aaa;
-}
-
-
 /* === RESPONSIVE ENHANCEMENTS === */
 
-/* Tablets and smaller laptops */
+/* Medium screens (tablets) */
 @media (max-width: 1024px) {
   main {
     padding: 20px;
@@ -426,12 +206,12 @@ body.dark-mode .leg-note {
     font-size: 28px;
   }
   #map {
-    height: 400px;
+    height: 380px;
   }
 }
 
-/* Mobile devices (portrait) */
-@media (max-width: 600px) {
+/* Small screens (mobile phones) */
+@media (max-width: 700px) {
   header {
     padding: 20px 10px;
   }
@@ -441,7 +221,7 @@ body.dark-mode .leg-note {
   }
 
   header h2 {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   nav a {
@@ -453,33 +233,40 @@ body.dark-mode .leg-note {
   .main-layout {
     flex-direction: column;
     gap: 20px;
+    align-items: stretch;
   }
 
-  .inputs-panel, 
-  .map-panel, 
+  .inputs-panel,
+  .map-panel,
   #output {
     width: 100%;
     max-width: 100%;
+    margin: 0;
+    padding: 16px;
     box-sizing: border-box;
   }
 
   #map {
-    height: 300px;
+    height: 320px;
   }
 
   button {
     width: 100%;
     font-size: 16px;
     padding: 12px;
+    border-radius: 10px;
   }
 
   label {
     font-size: 14px;
   }
 
-  input, select {
-    font-size: 14px;
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select {
     width: 100%;
+    font-size: 15px;
   }
 
   #themeToggle {
@@ -489,13 +276,20 @@ body.dark-mode .leg-note {
     height: 38px;
     font-size: 16px;
   }
+
+  /* Improve readability of output */
+  #output {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .leg-card {
+    padding: 10px 12px;
+  }
 }
 
-
+/* Prevent zoom jump and horizontal scroll */
 button, input, select {
   touch-action: manipulation;
-}
-
-input, button {
-  font-size: 16px; /* Prevents iOS zoom on focus */
+  font-size: 16px; /* prevents iOS zoom */
 }
