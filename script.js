@@ -1046,7 +1046,7 @@ if (legDistanceKm > maxDailyDistance) {
     
     
     output += `<p><strong>Estimated Overnight Stops:</strong> ${allOvernights.length}</p>`;
-    output += `<h4>Suggested Overnight Stops:</h4>`;
+    // output += `<h4>Suggested Overnight Stops:</h4>`;  seems not needed
     output += `<p><strong>Adults:</strong> ${numAdults}, <strong>Children:</strong> ${numChildren}</p>`;
     if (childrenAges.length) output += `<p><strong>Children ages:</strong> ${childrenAges.join(", ")}</p>`;
 
@@ -1513,7 +1513,7 @@ async function exportToPDF() {
       "Total Distance:",
       "Max Daily Distance:",
       "Estimated Overnight Stops:",
-      "Suggested Overnight Stops:",
+      // "Suggested Overnight Stops:", seems not needed
       "Children ages:",
       "Vehicle:",
       "Average Consumption:",
