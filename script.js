@@ -20,9 +20,27 @@ let distanceUnit = localStorage.getItem("distanceUnit") || "km";
 
 // === AFFILIATE SETTINGS ===
 const AFFILIATES = {
-  booking: { id: "2663340" }, // 🔁 replace with your Booking.com affiliate ID
+  booking: { id: "2663340", param: "aid" }, // 🔁 replace with your Booking.com affiliate ID
   expedia: { id: "US.DIRECT.PHG.1101l416247.0" }  // 🔁 replace with your Expedia affiliate ID
 };
+
+function appendAffiliateId(url, siteKey) {
+  if (!url || !siteKey) return url;
+
+  const affiliate = AFFILIATES[siteKey];
+  if (!affiliate || !affiliate.id) return url;
+
+  const paramName = affiliate.param || (siteKey === "booking" ? "aid" : null);
+  if (!paramName) return url;
+
+  const paramPattern = new RegExp(`[?&]${paramName}=`);
+  if (paramPattern.test(url)) {
+    return url;
+  }
+
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}${encodeURIComponent(paramName)}=${encodeURIComponent(affiliate.id)}`;
+}
 
 
 // 🌍 Distance Conversion Helpers
@@ -1161,13 +1179,13 @@ if (legDistanceKm > maxDailyDistance) {
       if (stop.latlng && typeof stop.latlng.lat === "function") {
         const lat = stop.latlng.lat();
         const lng = stop.latlng.lng();
-        bookingUrl = `https://www.booking.com/searchresults.html?ssne=${encodeURIComponent(place)}&ssne_untouched=${encodeURIComponent(place)}&efdco=1&latitude=${lat}&longitude=${lng}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&no_rooms=1&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}&order=distance_from_search`;
+        bookingUrl = appendAffiliateId(`https://www.booking.com/searchresults.html?ssne=${encodeURIComponent(place)}&ssne_untouched=${encodeURIComponent(place)}&efdco=1&latitude=${lat}&longitude=${lng}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&no_rooms=1&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}&order=distance_from_search`, "booking");
       } else if (stop.latlng && stop.latlng.lat && stop.latlng.lng) {
         const { lat, lng } = stop.latlng;
-        bookingUrl = `https://www.booking.com/searchresults.html?ssne=${encodeURIComponent(place)}&ssne_untouched=${encodeURIComponent(place)}&efdco=1&latitude=${lat}&longitude=${lng}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&no_rooms=1&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}&order=distance_from_search`;
+        bookingUrl = appendAffiliateId(`https://www.booking.com/searchresults.html?ssne=${encodeURIComponent(place)}&ssne_untouched=${encodeURIComponent(place)}&efdco=1&latitude=${lat}&longitude=${lng}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&no_rooms=1&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}&order=distance_from_search`, "booking");
       } else {
         // fallback if coordinates are missing
-        bookingUrl = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(place)}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}`;
+        bookingUrl = appendAffiliateId(`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(place)}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}`, "booking");
       }
 
       // --- Expedia (Improved) ---
@@ -2396,9 +2414,9 @@ function OpenTravelSite(site = "booking") {
   switch (site.toLowerCase()) {
     case "booking":
       if (lat && lng) {
-        url = `https://www.booking.com/searchresults.html?latitude=${lat}&longitude=${lng}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}&order=distance_from_search`;
+        url = appendAffiliateId(`https://www.booking.com/searchresults.html?latitude=${lat}&longitude=${lng}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}&order=distance_from_search`, "booking");
       } else {
-        url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(place)}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}`;
+        url = appendAffiliateId(`https://www.booking.com/searchresults.html?ss=${encodeURIComponent(place)}&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}&group_adults=${numAdults}&group_children=${numChildren}${childrenAges.length ? `&age=${childrenAges.join(',')}` : ''}`, "booking");
       }
       break;
 
@@ -2419,7 +2437,7 @@ function OpenTravelSite(site = "booking") {
       break;
 
     default:
-      url = "https://www.booking.com";
+      url = appendAffiliateId("https://www.booking.com", "booking");
   }
 
   window.open(url, "_blank");
@@ -2454,20 +2472,26 @@ function openStopTravelSite(site, lat, lng, placeEncoded, isAttraction = false, 
       const bookingAgeParams = childrenAges.map(age => `&age=${age}`).join("");
 
       if (lat && lng) {
-        url = `https://www.booking.com/searchresults.html?&ss=${encodeURIComponent(place)}`
-          + `&latitude=${lat}&longitude=${lng}`
-          + `&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}`
-          + `&no_rooms=${numRooms}`
-          + `&group_adults=${numAdults}&group_children=${numChildren}`
-          + bookingAgeParams
-          + `&order=distance_from_search`;
+        url = appendAffiliateId(
+          `https://www.booking.com/searchresults.html?&ss=${encodeURIComponent(place)}`
+            + `&latitude=${lat}&longitude=${lng}`
+            + `&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}`
+            + `&no_rooms=${numRooms}`
+            + `&group_adults=${numAdults}&group_children=${numChildren}`
+            + bookingAgeParams
+            + `&order=distance_from_search`,
+          "booking"
+        );
       } else {
-        url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(place)}`
-          + `&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}`
-          + `&no_rooms=${numRooms}`
-          + `&group_adults=${numAdults}&group_children=${numChildren}`
-          + bookingAgeParams
-          + `&order=distance_from_search`;
+        url = appendAffiliateId(
+          `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(place)}`
+            + `&checkin=${formatDate(checkinDate)}&checkout=${formatDate(checkoutDate)}`
+            + `&no_rooms=${numRooms}`
+            + `&group_adults=${numAdults}&group_children=${numChildren}`
+            + bookingAgeParams
+            + `&order=distance_from_search`,
+          "booking"
+        );
       }
       break;
 
@@ -2588,21 +2612,27 @@ function comparePrices(lat, lng, place, checkin, checkout) {
   // ✅ Booking.com (coordinates preferred)
   let booking;
   if (lat && lng) {
-    booking = `https://www.booking.com/searchresults.html`
-      + `?ss=${bookingPlace}`
-      + `&latitude=${lat}&longitude=${lng}`
-      + `&checkin=${checkin}&checkout=${checkout}`
-      + `&no_rooms=${rooms}`
-      + `&group_adults=${adults}&group_children=${children}`
-      + childrenAges.map(age => `&age=${age}`).join("")
-      + `&order=distance_from_search`;
+    booking = appendAffiliateId(
+      `https://www.booking.com/searchresults.html`
+        + `?ss=${bookingPlace}`
+        + `&latitude=${lat}&longitude=${lng}`
+        + `&checkin=${checkin}&checkout=${checkout}`
+        + `&no_rooms=${rooms}`
+        + `&group_adults=${adults}&group_children=${children}`
+        + childrenAges.map(age => `&age=${age}`).join("")
+        + `&order=distance_from_search`,
+      "booking"
+    );
   } else {
-    booking = `https://www.booking.com/searchresults.html`
-      + `?ss=${bookingPlace}`
-      + `&checkin=${checkin}&checkout=${checkout}`
-      + `&no_rooms=${rooms}`
-      + `&group_adults=${adults}&group_children=${children}`
-      + childrenAges.map(age => `&age=${age}`).join("");
+    booking = appendAffiliateId(
+      `https://www.booking.com/searchresults.html`
+        + `?ss=${bookingPlace}`
+        + `&checkin=${checkin}&checkout=${checkout}`
+        + `&no_rooms=${rooms}`
+        + `&group_adults=${adults}&group_children=${children}`
+        + childrenAges.map(age => `&age=${age}`).join(""),
+      "booking"
+    );
   }
 
   // ✅ Expedia (same encoding rule)
