@@ -1,0 +1,304 @@
+/* === GLOBAL === */
+body {
+  font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  background-color: #f4f6fa;
+  color: #222;
+  margin: 0;
+  padding: 0;
+  line-height: 1.6;
+  transition: background 0.6s ease, color 0.6s ease;
+  overflow-x: hidden; /* prevent sideways scroll on mobile */
+}
+
+/* === HEADER === */
+header {
+  background: linear-gradient(90deg, #004aad, #006eff);
+  color: white;
+  padding: 25px 15px;
+  text-align: center;
+  border-bottom: 3px solid #003b8c;
+  position: relative;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+header h2 {
+  margin: 8px 0 0;
+  font-weight: 400;
+  font-size: 18px;
+  color: #f4e19b;
+}
+
+/* === NAVIGATION === */
+nav {
+  margin-top: 12px;
+}
+nav a {
+  color: #ffd700;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0 10px;
+  transition: color 0.3s;
+}
+nav a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* === MAIN CONTENT === */
+main {
+  padding: 30px;
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* === BUTTONS === */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(180deg, #0078ff, #0064d2);
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  width: auto;
+  max-width: 100%;
+}
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+}
+
+button[onclick*="CalculateLegs"] { background: linear-gradient(180deg, #0078d7, #005fa3); }
+button[onclick*="OpenBookingCom"] { background: linear-gradient(180deg, #1a73e8, #1557b0); }
+button[onclick*="OpenGoogleMaps"] { background: linear-gradient(180deg, #34a853, #27813f); }
+button[onclick*="OpenABRP"] { background: linear-gradient(180deg, #ff9800, #e68900); }
+button[onclick*="saveTrip"] { background: linear-gradient(180deg, #16b31d, #0e8e15); }
+#downloadpdf { background: linear-gradient(180deg, #d32f2f, #b71c1c); }
+
+/* === LAYOUT PANELS === */
+.main-layout {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.inputs-panel, 
+.map-panel {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.inputs-panel {
+  flex: 1 1 350px;
+  max-width: 400px;
+  min-width: 280px;
+}
+
+.map-panel {
+  flex: 1 1 700px;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-width: 300px;
+}
+
+/* === MAP & OUTPUT === */
+#map {
+  width: 100%;
+  height: 450px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+}
+
+#output {
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  overflow-y: auto;
+  max-height: 80vh;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #333;
+}
+
+/* === DARK MODE === */
+body.dark-mode {
+  background: #121212;
+  color: #e0e0e0;
+}
+body.dark-mode header {
+  background: linear-gradient(90deg, #1a1a1a, #333);
+  border-bottom-color: #555;
+}
+body.dark-mode .inputs-panel,
+body.dark-mode .map-panel,
+body.dark-mode #output {
+  background: #1f1f1f;
+  color: #f0f0f0;
+  box-shadow: 0 3px 10px rgba(255,255,255,0.05);
+}
+body.dark-mode button {
+  box-shadow: 0 0 8px rgba(255,255,255,0.1);
+}
+body.dark-mode a {
+  color: #ffd700;
+}
+
+/* === THEME TOGGLE === */
+#themeToggle {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: #004aad;
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffd700;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.4s ease;
+  box-shadow: 0 0 8px rgba(0,0,0,0.3);
+  z-index: 20;
+}
+#themeToggle:hover {
+  transform: rotate(20deg) scale(1.1);
+  box-shadow: 0 0 15px rgba(255,215,0,0.6);
+}
+body.dark-mode #themeToggle {
+  background: #ffd700;
+  color: #222;
+  transform: rotate(180deg);
+}
+
+/* === RESPONSIVE ENHANCEMENTS === */
+
+/* Medium screens (tablets) */
+@media (max-width: 1024px) {
+  main {
+    padding: 20px;
+  }
+  header h1 {
+    font-size: 28px;
+  }
+  #map {
+    height: 380px;
+  }
+}
+
+/* Small screens (mobile phones) */
+@media (max-width: 700px) {
+  header {
+    padding: 20px 10px;
+  }
+
+  header h1 {
+    font-size: 24px;
+  }
+
+  header h2 {
+    font-size: 15px;
+  }
+
+  nav a {
+    display: inline-block;
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+
+  .main-layout {
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  .inputs-panel,
+  .map-panel,
+  #output {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+
+  #map {
+    height: 320px;
+  }
+
+  button {
+    width: 100%;
+    font-size: 16px;
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  label {
+    font-size: 14px;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select {
+    width: 100%;
+    font-size: 15px;
+  }
+
+  #themeToggle {
+    top: 10px;
+    right: 10px;
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
+  }
+
+  /* Improve readability of output */
+  #output {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .leg-card {
+    padding: 10px 12px;
+  }
+}
+
+/* Prevent zoom jump and horizontal scroll */
+button, input, select {
+  touch-action: manipulation;
+  font-size: 16px; /* prevents iOS zoom */
+}
+
+
+.route-avoid-options {
+  margin-top: 10px;
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  font-size: 0.9em;
+}

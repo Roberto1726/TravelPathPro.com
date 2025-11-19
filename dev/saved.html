@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saved Trips - Travel Path Pro</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #fafafa;
+    }
+    header {
+      text-align: center;
+      padding: 15px;
+      background: #004aad;
+      color: white;
+      border-radius: 10px;
+    }
+    nav a {
+      color: #ffd700;
+      text-decoration: none;
+      margin: 0 10px;
+    }
+    nav a:hover {
+      text-decoration: underline;
+    }
+    main {
+      margin-top: 30px;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .trip-card {
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 10px;
+      background-color: #fdfdfd;
+    }
+    .trip-card h3 {
+      margin: 0;
+      color: #004aad;
+    }
+    .trip-card small {
+      color: #555;
+    }
+    .trip-actions {
+      margin-top: 10px;
+    }
+    button {
+      background-color: #0078d7;
+      color: white;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background-color: #005fa3;
+    }
+
+    .trip-card:hover {
+      background-color: #f5f9ff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      transition: 0.2s;
+    }
+
+    .trip-title {
+      cursor: text;
+      border-bottom: 1px dashed transparent;
+      transition: border 0.2s;
+    }
+
+    .trip-title:focus {
+      outline: none;
+      border-bottom: 1px dashed #0078d7;
+      background-color: #eef6ff;
+    }
+
+    .trip-actions button {
+      margin-right: 5px;
+    }
+
+    .trip-card {
+      background-color: white;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .trip-card:hover {
+      background-color: #f5f9ff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      transition: 0.2s;
+    }
+
+    .trip-title {
+      cursor: text;
+      border-bottom: 1px dashed transparent;
+      transition: border 0.2s;
+    }
+
+    .trip-title:focus {
+      outline: none;
+      border-bottom: 1px dashed #0078d7;
+      background-color: #eef6ff;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: #555;
+    }
+
+  </style>
+
+
+</head>
+<body>
+  <header>
+    <h1>Saved Trips</h1>
+    <nav>
+      <a href="index.html">🏠 Home</a> |
+      <a href="saved.html">💾 Saved Trips</a> |
+      <a href="about.html">ℹ️ About</a> |
+      <a href="contact.html">📧 Contact</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2>Your Saved Road Trips</h2>
+    <p>Below is a list of trips you’ve saved locally on this device.</p>
+    <div id="tripsContainer"></div>
+  </main>
+
+  <footer>
+    <p>© 2025 Roberto</p>
+  </footer>
+
+
+<script>
+  function safeParseTrips(rawValue) {
+    if (typeof rawValue !== 'string' || !rawValue.trim()) {
+      return [];
+    }
+
+    try {
+      return JSON.parse(rawValue) || [];
+    } catch (error) {
+      console.warn('Failed to parse saved trips from localStorage', error);
+      try {
+        localStorage.removeItem('savedTrips');
+      } catch (removeErr) {
+        console.warn('Unable to remove corrupt savedTrips key', removeErr);
+      }
+      return [];
+    }
+  }
+
+  function loadTrips() {
+    const container = document.getElementById('tripsContainer');
+    container.innerHTML = '';
+
+    const savedTrips = safeParseTrips(localStorage.getItem('savedTrips'));
+
+    if (savedTrips.length === 0) {
+      container.innerHTML = '<p>No saved trips yet. Go plan one!</p>';
+      return;
+    }
+
+    savedTrips.forEach((trip, index) => {
+      const div = document.createElement('div');
+      div.classList.add('trip-card');
+
+      // 🏕️ Build formatted stops list
+      let stopsHTML = 'None';
+      if (Array.isArray(trip.stops) && trip.stops.length > 0) {
+        const formattedStops = trip.stops.map(stop => {
+          if (typeof stop === 'string') {
+            return stop; // old trips (no nights info)
+          } else if (stop.location) {
+            return `${stop.location} (${stop.nights} night${stop.nights > 1 ? 's' : ''})`;
+          }
+          return '';
+        }).filter(Boolean);
+
+        stopsHTML = formattedStops.join(', ');
+      }
+
+      // 🧱 Build card HTML
+      div.innerHTML = `
+        <h3 class="trip-title" id="title-${index}" contenteditable="true">${trip.title || 'Untitled Trip'}</h3>
+        <small>Saved on: ${trip.dateSaved}</small>
+        <p><strong>From:</strong> ${trip.start} <br>
+          <strong>To:</strong> ${trip.destination} <br>
+          <strong>Stops:</strong> ${stopsHTML}</p>
+        <div class="trip-actions">
+          <button onclick="viewTrip(${index})">🔍 View</button>
+          <button onclick="duplicateTrip(${index})">📄 Duplicate</button>
+          <button onclick="deleteTrip(${index})">🗑️ Delete</button>
+        </div>
+      `;
+
+      // ✏️ Inline editing for title
+      const titleEl = div.querySelector('.trip-title');
+      titleEl.addEventListener('blur', () => saveTitleChange(index, titleEl.innerText.trim()));
+      titleEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          titleEl.blur();
+        }
+      });
+
+      container.appendChild(div);
+    });
+  }
+
+
+  function saveTitleChange(index, newTitle) {
+    if (!newTitle) return;
+    const trips = safeParseTrips(localStorage.getItem('savedTrips'));
+    if (!trips[index]) return;
+    trips[index].title = newTitle;
+    localStorage.setItem('savedTrips', JSON.stringify(trips));
+  }
+
+  function viewTrip(index) {
+    const trips = safeParseTrips(localStorage.getItem('savedTrips'));
+    const trip = trips[index];
+    if (!trip) return;
+
+    localStorage.setItem('tripToLoad', JSON.stringify({
+      start: trip.start,
+      destination: trip.destination,
+      stops: trip.stops || [],
+      maxDailyDistance: trip.maxDailyDistance || 0,
+      numAdults: trip.numAdults || 1,
+      numChildren: trip.numChildren || 0,
+      childrenAges: trip.childrenAges || [],
+      numRooms: trip.numRooms || 1,
+      fromDate: trip.fromDate || '',
+      toDate: trip.toDate || '',
+      vehicleType: trip.vehicleType || 'car',
+      fuelType: trip.fuelType || 'gas',
+      fuelPrice: trip.fuelPrice || 0,
+      distanceUnit: trip.distanceUnit || "km",
+      autoCalc: true
+    }));
+
+    window.location.href = 'index.html';
+  }
+
+
+
+  function deleteTrip(index) {
+    if (!confirm("Are you sure you want to delete this trip?")) return;
+    const trips = safeParseTrips(localStorage.getItem('savedTrips'));
+    trips.splice(index, 1);
+    localStorage.setItem('savedTrips', JSON.stringify(trips));
+    loadTrips();
+  }
+
+  function duplicateTrip(index) {
+    const trips = safeParseTrips(localStorage.getItem('savedTrips'));
+    const trip = trips[index];
+    if (!trip) return;
+
+    const newTrip = JSON.parse(JSON.stringify(trip)); // deep clone
+    newTrip.title = (trip.title || "Untitled Trip") + " (Copy)";
+    newTrip.dateSaved = new Date().toLocaleString();
+
+    trips.push(newTrip);
+    localStorage.setItem('savedTrips', JSON.stringify(trips));
+    loadTrips();
+  }
+
+  loadTrips();
+</script>
+
+
+</body>
+</html>
