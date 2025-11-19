@@ -20,8 +20,8 @@ let distanceUnit = localStorage.getItem("distanceUnit") || "km";
 
 // === AFFILIATE SETTINGS ===
 const AFFILIATES = {
-  booking: { id: 1234567 }, // 🔁 replace with your Booking.com affiliate ID
-  expedia: { id: 7654321 }  // 🔁 replace with your Expedia affiliate ID
+  booking: { id: 2663340 }, // 🔁 replace with your Booking.com affiliate ID
+  expedia: { id: US.DIRECT.PHG.1101l416247.0 }  // 🔁 replace with your Expedia affiliate ID
 };
 
 
