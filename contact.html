@@ -82,10 +82,10 @@
   <header>
     <h1>Contact Us</h1>
     <nav>
-      <a href="index.html">Home</a> |
-      <a href="saved.html">Saved Trips</a> |
+      <a href="index.html">🏠 Home</a> |
+      <a href="saved.html">💾 Saved Trips</a> |
       <a href="about.html">ℹ️ About</a> |
-      <a href="contact.html">Contact</a>
+      <a href="contact.html">📧 Contact</a>
     </nav>
   </header>
 
@@ -121,7 +121,7 @@
       successMsg.style.display = 'none';
       errorMsg.style.display = 'none';
 
-      emailjs.sendForm('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', this)
+      emailjs.sendForm('service_cb3tgoe', 'template_awjddlk', this)
         .then(() => {
           successMsg.style.display = 'block';
           form.reset();
