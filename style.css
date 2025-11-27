@@ -302,3 +302,39 @@ button, input, select {
   flex-wrap: wrap;
   font-size: 0.9em;
 }
+
+
+/* TravelPathPro Header Description */
+.tpp-header-description {
+  max-width: 900px;
+  margin: 20px auto 10px;
+  text-align: center;
+  color: #ffffff;
+  line-height: 1.7;
+  font-size: 1.1rem;
+  padding: 0 15px;
+}
+
+/* Tablet size */
+@media (max-width: 768px) {
+  .tpp-header-description {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+}
+
+/* Mobile phones */
+@media (max-width: 480px) {
+  .tpp-header-description {
+    font-size: 0.92rem;
+    line-height: 1.55;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 360px) {
+  .tpp-header-description {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+}
